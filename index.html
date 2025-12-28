@@ -1,143 +1,319 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<title>IF Engine</title>
+<meta name="viewport"
+      content="width=device-width,
+               initial-scale=1.0,
+               maximum-scale=1.0,
+               user-scalable=no">
+
+<title>Interactive Fiction</title>
+
 <style>
-body{background:#111;color:#eee;font-family:monospace;padding:20px}
-button{display:block;margin:6px 0;padding:6px;background:#222;color:#fff;border:1px solid #555}
-#stats,#quests{margin-bottom:10px;color:#9f9}
-#text{white-space:pre-wrap;margin-bottom:12px}
+:root{
+  --bg:#111;
+  --fg:#eee;
+  --ui:#222;
+  --border:#444;
+  --accent:#9f9;
+}
+
+html,body{
+  margin:0;
+  padding:0;
+  height:100%;
+  background:var(--bg);
+  color:var(--fg);
+  font-family:system-ui, -apple-system, BlinkMacSystemFont, monospace;
+}
+
+#app{
+  max-width:720px;
+  margin:0 auto;
+  padding:14px;
+  box-sizing:border-box;
+}
+
+.panel{
+  border:1px solid var(--border);
+  background:var(--ui);
+  padding:10px;
+  margin-bottom:12px;
+  border-radius:6px;
+}
+
+#stats{
+  font-size:14px;
+  color:var(--accent);
+}
+
+#quests{
+  font-size:14px;
+  color:#ccc;
+}
+
+#text{
+  font-size:16px;
+  line-height:1.5;
+  white-space:pre-wrap;
+}
+
+#options{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+button{
+  width:100%;
+  min-height:48px;
+  font-size:16px;
+  background:#333;
+  color:#fff;
+  border:1px solid var(--border);
+  border-radius:6px;
+  padding:10px;
+  text-align:left;
+}
+
+button:active{
+  background:#444;
+}
+
+@media (min-width:600px){
+  #text{ font-size:17px; }
+  button{ font-size:17px; }
+}
 </style>
 </head>
-<body>
 
-<div id="stats"></div>
-<div id="quests"></div>
-<div id="text"></div>
-<div id="options"></div>
+<body>
+<div id="app">
+
+  <div id="stats" class="panel"></div>
+  <div id="quests" class="panel"></div>
+  <div id="text" class="panel"></div>
+  <div id="options"></div>
+
+</div>
 
 <script>
+/* ------------------ CORE STATE ------------------ */
 let story={pages:{},enemies:{},combats:{}};
+
 let state={
- page:null,stats:{},inv:[],flags:{},quests:{},
- combat:null
+  page:null,
+  stats:{},
+  inv:[],
+  flags:{},
+  quests:{}
 };
 
-fetch("story.txt").then(r=>r.text()).then(parse).then(start);
+/* ------------------ LOAD STORY ------------------ */
+fetch("story.txt")
+.then(r=>r.text())
+.then(parseStory)
+.then(startGame);
 
-function parse(t){
- let l=t.split("\n"),mode=null,p=null,o=null;
- for(let r of l){
-  let s=r.trim(); if(!s)continue;
-  if(s.startsWith("@")){
-   let a=s.slice(1).split(" ");
-   mode=a[0]; p=null;
-   if(mode=="room"||mode=="npc"){
-    story.pages[a[1]]={text:"",opts:[]}; p=story.pages[a[1]];
-   }
-   if(mode=="enemy"){ story.enemies[a[1]]={}; p=story.enemies[a[1]]; }
-   if(mode=="combat"){ story.combats[a[1]]={enemies:[],win:[],lose:[],eff:[]}; p=story.combats[a[1]]; }
-   continue;
+/* ------------------ PARSER ------------------ */
+function parseStory(txt){
+  let lines=txt.split("\n");
+  let mode=null, page=null, opt=null, block=null;
+
+  for(let raw of lines){
+    let line=raw.trim();
+    if(!line) continue;
+
+    if(line.startsWith("@")){
+      let parts=line.slice(1).split(" ");
+      mode=parts[0];
+      page=null; opt=null; block=null;
+
+      if(mode==="room"||mode==="npc"){
+        story.pages[parts[1]]={text:"",opts:[]};
+        page=story.pages[parts[1]];
+      }
+      if(mode==="enemy"){
+        story.enemies[parts[1]]={};
+        page=story.enemies[parts[1]];
+      }
+      if(mode==="combat"){
+        story.combats[parts[1]]={
+          enemies:[],eff:[],win:[],lose:[],fleeable:false
+        };
+        page=story.combats[parts[1]];
+      }
+      continue;
+    }
+
+    if(mode==="stats"){
+      let [k,v]=line.split(":");
+      state.stats[k]=+v;
+      continue;
+    }
+
+    if(mode==="inventory"){ state.inv.push(line); continue; }
+
+    if(mode==="flags"){
+      let [k,v]=line.split(":");
+      state.flags[k]=(v==="true")?true:(+v||false);
+      continue;
+    }
+
+    if(mode==="quests"){
+      state.quests[line]={state:"inactive",step:"",stats:{}};
+      continue;
+    }
+
+    if(page){
+      if(line.startsWith("-")){
+        opt={label:line.slice(1).trim(),acts:[],chance:null};
+        page.opts.push(opt);
+        continue;
+      }
+
+      if(line==="!chance"){ opt.chance=[]; continue; }
+
+      if(line.startsWith("*")){
+        (opt.chance||opt.acts).push(line.slice(1).trim());
+        continue;
+      }
+
+      if(line==="on_win:"){ block="win"; continue; }
+      if(line==="on_lose:"){ block="lose"; continue; }
+
+      if(block){
+        page[block].push(line.slice(1).trim());
+        continue;
+      }
+
+      if(line.startsWith("enemy:")){
+        page.enemies.push(line.split(":")[1]);
+        continue;
+      }
+
+      if(line.startsWith("effector:")){
+        page.eff.push(line.split(":")[1]);
+        continue;
+      }
+
+      if(line.includes(":")){
+        let [k,v]=line.split(":");
+        page[k]=+v||v;
+        continue;
+      }
+
+      page.text+=line+"\n";
+    }
   }
-  if(mode=="stats"){ let[x,y]=s.split(":"); state.stats[x]=+y; }
-  if(mode=="inventory") state.inv.push(s);
-  if(mode=="flags"){ let[x,y]=s.split(":"); state.flags[x]=y=="true"?true:+y||false; }
-  if(mode=="quests") state.quests[s]={state:"inactive",step:"",stats:{}};
-  if(p){
-   if(s.startsWith("-")){ o={label:s.slice(1),acts:[],chance:null}; p.opts.push(o); }
-   else if(s=="!chance") o.chance=[];
-   else if(s.startsWith("*")) (o.chance||o.acts).push(s.slice(1));
-   else if(s=="on_win:") p._=p.win;
-   else if(s=="on_lose:") p._=p.lose;
-   else if(s.startsWith("enemy:")) p.enemies.push(s.split(":")[1]);
-   else if(s.startsWith("effector:")) p.eff.push(s.split(":")[1]);
-   else if(p._) p._.push(s.slice(1));
-   else if(s.includes(":")){ let[x,y]=s.split(":"); p[x]=+y||y; }
-   else p.text+=s+"\n";
-  }
- }
 }
 
-function start(){ state.page=Object.keys(story.pages)[0]; draw(); }
-
-function draw(){
- stats.innerText=Object.entries(state.stats).map(e=>e.join(":")).join(" | ");
- quests.innerText=Object.entries(state.quests).filter(q=>q[1].state=="active")
-  .map(q=>q[0]+": "+q[1].step).join("\n");
- let p=story.pages[state.page];
- text.innerText=p.text;
- options.innerHTML="";
- p.opts.forEach(b=>{
-  let x=document.createElement("button");
-  x.innerText=b.label;
-  x.onclick=()=>run(b);
-  options.appendChild(x);
- });
+/* ------------------ GAME LOOP ------------------ */
+function startGame(){
+  state.page=Object.keys(story.pages)[0];
+  render();
 }
 
-function run(o){
- let acts=o.chance?[pick(o.chance)]:o.acts;
- acts.forEach(exec); draw();
-}
+function render(){
+  stats.innerText =
+    Object.entries(state.stats).map(e=>e.join(":")).join(" | ");
 
-function pick(c){
- let pool=[];
- c.forEach(a=>{
-  let m=a.match(/^(\d+)%\s*(.*)$/);
-  let w=m?+m[1]:1,act=m?m[2]:a;
-  for(let i=0;i<w;i++)pool.push(act);
- });
- return pool[Math.random()*pool.length|0];
-}
+  quests.innerText =
+    Object.entries(state.quests)
+    .filter(q=>q[1].state==="active")
+    .map(q=>q[0]+": "+q[1].step)
+    .join("\n") || "No active quests";
 
-function exec(a){
- if(a.startsWith("if(")){
-  let[m,c,r]=a.match(/if\((.+)\)\s*(.*)/);
-  if(!cond(c))return; a=r;
- }
- if(a.startsWith("room(")) state.page=a.slice(5,-1);
- else if(a.startsWith("item(")) state.inv.push(a.slice(5,-1));
- else if(a.startsWith("set(")){
-  let[x,y]=a.slice(4,-1).split(","); state.stats[x]+=+y;
- }
- else if(a.startsWith("flag(")){
-  let[x,y]=a.slice(5,-1).split(",");
-  state.flags[x]+=+y|| (y=="true");
- }
- else if(a.startsWith("quest(")){
-  let[x,y,z]=a.slice(6,-1).split(",");
-  state.quests[x].state=y; if(z)state.quests[x].step=z;
- }
- else if(a.startsWith("queststat(")){
-  let[x,y,z]=a.slice(10,-1).split(",");
-  state.quests[x].stats[y]=(state.quests[x].stats[y]||0)+(+z);
- }
- else if(a.startsWith("combat(")) startCombat(a.slice(7,-1));
- else if(a=="win") alert("YOU WIN");
- else if(a=="lose") alert("YOU LOSE");
- else if(a.startsWith("say(")) alert(a.slice(4,-1));
-}
+  let p=story.pages[state.page];
+  text.innerText=p.text;
 
-function cond(c){
- if(c.startsWith("flag:")) return state.flags[c.slice(5)];
- if(c.startsWith("!flag:")) return !state.flags[c.slice(6)];
- if(c.startsWith("has:")) return state.inv.includes(c.slice(4));
- let m=c.match(/(\w+)([<>=!]+)(\d+)/);
- return eval(state.stats[m[1]]+m[2]+m[3]);
-}
-
-function startCombat(id){
- let cmb=story.combats[id];
- let enemies=cmb.enemies.map(e=>({...story.enemies[e]}));
- while(enemies.length){
-  enemies.forEach(e=>{
-   state.stats.health-=Math.max(1,e.attack-state.stats.defense);
+  options.innerHTML="";
+  p.opts.forEach(o=>{
+    let b=document.createElement("button");
+    b.textContent=o.label;
+    b.onclick=()=>runOption(o);
+    options.appendChild(b);
   });
-  if(state.stats.health<=0){ cmb.lose.forEach(exec); return; }
-  enemies.shift();
- }
- cmb.win.forEach(exec);
+}
+
+/* ------------------ ACTION HANDLING ------------------ */
+function runOption(o){
+  let acts=o.chance?[pickChance(o.chance)]:o.acts;
+  acts.forEach(runAction);
+  render();
+}
+
+function pickChance(list){
+  let pool=[];
+  list.forEach(a=>{
+    let m=a.match(/^(\d+)%\s+(.*)$/);
+    let w=m?+m[1]:1;
+    let act=m?m[2]:a;
+    for(let i=0;i<w;i++) pool.push(act);
+  });
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+
+function runAction(a){
+  if(a.startsWith("if(")){
+    let [,cond,rest]=a.match(/if\((.+)\)\s+(.*)/);
+    if(!checkCond(cond)) return;
+    a=rest;
+  }
+
+  if(a.startsWith("room(")) state.page=a.slice(5,-1);
+  else if(a.startsWith("item(")) state.inv.push(a.slice(5,-1));
+  else if(a.startsWith("set(")){
+    let [k,v]=a.slice(4,-1).split(",");
+    state.stats[k]+=Number(v);
+  }
+  else if(a.startsWith("flag(")){
+    let [k,v]=a.slice(5,-1).split(",");
+    state.flags[k]+=Number(v)|| (v==="true");
+  }
+  else if(a.startsWith("quest(")){
+    let [q,s,txt]=a.slice(6,-1).split(",");
+    state.quests[q].state=s;
+    if(txt) state.quests[q].step=txt;
+  }
+  else if(a.startsWith("queststat(")){
+    let [q,k,v]=a.slice(10,-1).split(",");
+    let qs=state.quests[q].stats;
+    qs[k]=(qs[k]||0)+Number(v);
+  }
+  else if(a.startsWith("combat(")) runCombat(a.slice(7,-1));
+  else if(a==="win") alert("YOU WIN");
+  else if(a==="lose") alert("GAME OVER");
+  else if(a.startsWith("say(")) alert(a.slice(4,-1));
+}
+
+function checkCond(c){
+  if(c.startsWith("flag:")) return !!state.flags[c.slice(5)];
+  if(c.startsWith("!flag:")) return !state.flags[c.slice(6)];
+  if(c.startsWith("has:")) return state.inv.includes(c.slice(4));
+
+  let m=c.match(/(\w+)([<>=!]+)(-?\d+)/);
+  return eval(state.stats[m[1]]+m[2]+m[3]);
+}
+
+/* ------------------ COMBAT (SIMPLIFIED LOOP) ------------------ */
+function runCombat(id){
+  let cmb=story.combats[id];
+  let enemies=cmb.enemies.map(e=>({...story.enemies[e]}));
+
+  while(enemies.length){
+    enemies.forEach(e=>{
+      let dmg=Math.max(1,e.attack-state.stats.defense);
+      state.stats.health-=dmg;
+    });
+    if(state.stats.health<=0){
+      cmb.lose.forEach(runAction);
+      return;
+    }
+    enemies.shift();
+  }
+  cmb.win.forEach(runAction);
 }
 </script>
 
