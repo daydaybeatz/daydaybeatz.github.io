@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>IF Engine</title>
+<style>
+body{background:#111;color:#eee;font-family:monospace;padding:20px}
+button{display:block;margin:6px 0;padding:6px;background:#222;color:#fff;border:1px solid #555}
+#stats,#quests{margin-bottom:10px;color:#9f9}
+#text{white-space:pre-wrap;margin-bottom:12px}
+</style>
+</head>
+<body>
+
+<div id="stats"></div>
+<div id="quests"></div>
+<div id="text"></div>
+<div id="options"></div>
+
+<script>
+let story={pages:{},enemies:{},combats:{}};
+let state={
+ page:null,stats:{},inv:[],flags:{},quests:{},
+ combat:null
+};
+
+fetch("story.txt").then(r=>r.text()).then(parse).then(start);
+
+function parse(t){
+ let l=t.split("\n"),mode=null,p=null,o=null;
+ for(let r of l){
+  let s=r.trim(); if(!s)continue;
+  if(s.startsWith("@")){
+   let a=s.slice(1).split(" ");
+   mode=a[0]; p=null;
+   if(mode=="room"||mode=="npc"){
+    story.pages[a[1]]={text:"",opts:[]}; p=story.pages[a[1]];
+   }
+   if(mode=="enemy"){ story.enemies[a[1]]={}; p=story.enemies[a[1]]; }
+   if(mode=="combat"){ story.combats[a[1]]={enemies:[],win:[],lose:[],eff:[]}; p=story.combats[a[1]]; }
+   continue;
+  }
+  if(mode=="stats"){ let[x,y]=s.split(":"); state.stats[x]=+y; }
+  if(mode=="inventory") state.inv.push(s);
+  if(mode=="flags"){ let[x,y]=s.split(":"); state.flags[x]=y=="true"?true:+y||false; }
+  if(mode=="quests") state.quests[s]={state:"inactive",step:"",stats:{}};
+  if(p){
+   if(s.startsWith("-")){ o={label:s.slice(1),acts:[],chance:null}; p.opts.push(o); }
+   else if(s=="!chance") o.chance=[];
+   else if(s.startsWith("*")) (o.chance||o.acts).push(s.slice(1));
+   else if(s=="on_win:") p._=p.win;
+   else if(s=="on_lose:") p._=p.lose;
+   else if(s.startsWith("enemy:")) p.enemies.push(s.split(":")[1]);
+   else if(s.startsWith("effector:")) p.eff.push(s.split(":")[1]);
+   else if(p._) p._.push(s.slice(1));
+   else if(s.includes(":")){ let[x,y]=s.split(":"); p[x]=+y||y; }
+   else p.text+=s+"\n";
+  }
+ }
+}
+
+function start(){ state.page=Object.keys(story.pages)[0]; draw(); }
+
+function draw(){
+ stats.innerText=Object.entries(state.stats).map(e=>e.join(":")).join(" | ");
+ quests.innerText=Object.entries(state.quests).filter(q=>q[1].state=="active")
+  .map(q=>q[0]+": "+q[1].step).join("\n");
+ let p=story.pages[state.page];
+ text.innerText=p.text;
+ options.innerHTML="";
+ p.opts.forEach(b=>{
+  let x=document.createElement("button");
+  x.innerText=b.label;
+  x.onclick=()=>run(b);
+  options.appendChild(x);
+ });
+}
+
+function run(o){
+ let acts=o.chance?[pick(o.chance)]:o.acts;
+ acts.forEach(exec); draw();
+}
+
+function pick(c){
+ let pool=[];
+ c.forEach(a=>{
+  let m=a.match(/^(\d+)%\s*(.*)$/);
+  let w=m?+m[1]:1,act=m?m[2]:a;
+  for(let i=0;i<w;i++)pool.push(act);
+ });
+ return pool[Math.random()*pool.length|0];
+}
+
+function exec(a){
+ if(a.startsWith("if(")){
+  let[m,c,r]=a.match(/if\((.+)\)\s*(.*)/);
+  if(!cond(c))return; a=r;
+ }
+ if(a.startsWith("room(")) state.page=a.slice(5,-1);
+ else if(a.startsWith("item(")) state.inv.push(a.slice(5,-1));
+ else if(a.startsWith("set(")){
+  let[x,y]=a.slice(4,-1).split(","); state.stats[x]+=+y;
+ }
+ else if(a.startsWith("flag(")){
+  let[x,y]=a.slice(5,-1).split(",");
+  state.flags[x]+=+y|| (y=="true");
+ }
+ else if(a.startsWith("quest(")){
+  let[x,y,z]=a.slice(6,-1).split(",");
+  state.quests[x].state=y; if(z)state.quests[x].step=z;
+ }
+ else if(a.startsWith("queststat(")){
+  let[x,y,z]=a.slice(10,-1).split(",");
+  state.quests[x].stats[y]=(state.quests[x].stats[y]||0)+(+z);
+ }
+ else if(a.startsWith("combat(")) startCombat(a.slice(7,-1));
+ else if(a=="win") alert("YOU WIN");
+ else if(a=="lose") alert("YOU LOSE");
+ else if(a.startsWith("say(")) alert(a.slice(4,-1));
+}
+
+function cond(c){
+ if(c.startsWith("flag:")) return state.flags[c.slice(5)];
+ if(c.startsWith("!flag:")) return !state.flags[c.slice(6)];
+ if(c.startsWith("has:")) return state.inv.includes(c.slice(4));
+ let m=c.match(/(\w+)([<>=!]+)(\d+)/);
+ return eval(state.stats[m[1]]+m[2]+m[3]);
+}
+
+function startCombat(id){
+ let cmb=story.combats[id];
+ let enemies=cmb.enemies.map(e=>({...story.enemies[e]}));
+ while(enemies.length){
+  enemies.forEach(e=>{
+   state.stats.health-=Math.max(1,e.attack-state.stats.defense);
+  });
+  if(state.stats.health<=0){ cmb.lose.forEach(exec); return; }
+  enemies.shift();
+ }
+ cmb.win.forEach(exec);
+}
+</script>
+
+</body>
+</html>
