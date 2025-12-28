@@ -43,7 +43,6 @@ defense:3
 enemy:wolf
 enemy:wolf
 fleeable:true
-effector:attack
 
 on_win:
 * flag(wolves_cleared,true)
@@ -60,7 +59,6 @@ on_lose:
 enemy:bandit
 enemy:bandit
 fleeable:true
-effector:attack
 
 on_win:
 * flag(bandits_dealt,true)
@@ -76,7 +74,6 @@ on_lose:
 @combat corrupted_shrine
 enemy:corrupted
 fleeable:false
-effector:attack
 
 on_win:
 * set(reputation,+1)
@@ -91,7 +88,9 @@ A stone well rests near the center.
 A shrine flickers dimly.
 A bridge gate leads outward.
 
+- Take in the surroundings
 * if(!flag:visited_courtyard) flag(visited_courtyard,true)
+* say(The village feels calm, but tense.)
 
 - Speak with Elda
 * room(elda)
@@ -119,16 +118,16 @@ A bridge gate leads outward.
 @room notice
 The board is cluttered with worn postings.
 
-- Missing Traps
+- Accept “Missing Traps”
 * quest(missing_traps,start,Clear wolves near the river.)
 
-- Water Runs Dark
+- Accept “Water Runs Dark”
 * quest(water_runs_dark,start,Investigate the flooded cellar.)
 
-- Debt to Bandits
+- Accept “Debt to Bandits”
 * quest(debt_to_bandits,start,Deal with bandits in the hills.)
 
-- The Runaway
+- Accept “The Runaway”
 * quest(the_runaway,start,Find Lysa near the woods.)
 
 - Step away
@@ -152,11 +151,12 @@ Elda watches you closely.
 @npc marn
 Marn grins from behind his stall.
 
-- Buy supplies
+- Ask about supplies
 * say(Potions and tools cost more when trouble brews.)
 
 - Sell pelts
 * if(flag:wolves_cleared) set(gold,+6)
+* say(Marn counts out the coins.)
 
 - Ask about rumors
 * say(Bandits, beasts, and worse under the trees.)
@@ -171,12 +171,12 @@ A mill creaks slowly.
 - Inspect the riverbank
 !chance
 * 60% combat(wolves_river)
-* 40% say(Tracks fade into mud.)
+* 40% say(Tracks fade into the mud.)
 
 - Visit the abandoned shack
 * room(shack)
 
-- Return
+- Return to the crossing
 * room(courtyard)
 
 @room shack
@@ -187,7 +187,7 @@ The shack smells of rot.
 * 50% set(health,-10)
 * 50% say(Nothing but mold.)
 
-- Return
+- Leave the shack
 * room(riverside)
 
 @room woods
@@ -196,7 +196,7 @@ Ancient trees loom overhead.
 - Search for Lysa
 * room(lysa)
 
-- Approach fallen watchtower
+- Approach the fallen watchtower
 * room(watchtower)
 
 - Return
@@ -216,26 +216,29 @@ Lysa steps back nervously.
 * quest(the_runaway,complete)
 * room(courtyard)
 
+- Leave her be
+* room(woods)
+
 @room watchtower
-Roots twist through stone ruins.
+Roots twist through broken stone.
 
 - Examine the roots
-* if(flag:vault_unsealed) say(The vault yawns open.)
-* if(!flag:vault_unsealed) quest(stone_beneath_roots,start,Find the sealed vault.)
+* if(flag:vault_unsealed) say(The vault stands open.)
+* if(!flag:vault_unsealed) say(Something lies buried here.)
 
-- Dig deeper
+- Try to unseal the stone
 * if(reputation>=1) flag(vault_unsealed,true)
 * if(reputation>=1) quest(stone_beneath_roots,complete)
 * if(reputation>=1) room(vault)
 * if(reputation<1) say(The stone won’t budge.)
 
-- Return
+- Step away
 * room(woods)
 
 @room broken_hills
-Wind howls across shattered stone.
+Wind howls across shattered rock.
 
-- Approach bandit lookout
+- Approach the bandit lookout
 !chance
 * 50% combat(bandit_fight)
 * 50% say(The lookout is empty.)
@@ -244,13 +247,15 @@ Wind howls across shattered stone.
 * if(gold>=10) set(gold,-10)
 * if(gold>=10) flag(bandits_dealt,true)
 * if(gold>=10) quest(debt_to_bandits,complete)
+* if(gold>=10) say(The bandits leave you alone.)
+* if(gold<10) say(Not enough gold.)
 
 - Return
 * room(courtyard)
 
 @room vault
-Ancient machinery hums beneath roots.
-The truth of Brookhaven lies here.
+Ancient machinery hums beneath twisted roots.
+The truth of Brookhaven lies below.
 
-- Step inside
+- Step into the vault
 * win
