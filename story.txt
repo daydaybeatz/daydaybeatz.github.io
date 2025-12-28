@@ -1,0 +1,256 @@
+@stats
+health:100
+attack:5
+defense:2
+gold:10
+reputation:0
+
+@inventory
+knife
+torch
+
+@flags
+visited_courtyard:false
+wolves_cleared:false
+cellar_purified:false
+bandits_dealt:false
+lysa_hidden:false
+vault_unsealed:false
+
+@quests
+missing_traps
+water_runs_dark
+debt_to_bandits
+the_runaway
+stone_beneath_roots
+
+@enemy wolf
+health:20
+attack:5
+defense:1
+
+@enemy bandit
+health:30
+attack:7
+defense:2
+
+@enemy corrupted
+health:45
+attack:9
+defense:3
+
+@combat wolves_river
+enemy:wolf
+enemy:wolf
+fleeable:true
+effector:attack
+
+on_win:
+* flag(wolves_cleared,true)
+* quest(missing_traps,complete)
+* item(hunters_bow)
+* set(gold,+5)
+* room(riverside)
+
+on_lose:
+* say(The wolves drive you back.)
+* room(courtyard)
+
+@combat bandit_fight
+enemy:bandit
+enemy:bandit
+fleeable:true
+effector:attack
+
+on_win:
+* flag(bandits_dealt,true)
+* quest(debt_to_bandits,complete)
+* item(heavy_boots)
+* set(gold,+8)
+* room(broken_hills)
+
+on_lose:
+* say(The bandits leave you bruised.)
+* room(courtyard)
+
+@combat corrupted_shrine
+enemy:corrupted
+fleeable:false
+effector:attack
+
+on_win:
+* set(reputation,+1)
+* room(courtyard)
+
+on_lose:
+* lose
+
+@room courtyard
+Brookhaven Crossing opens before you.
+A stone well rests near the center.
+A shrine flickers dimly.
+A bridge gate leads outward.
+
+* if(!flag:visited_courtyard) flag(visited_courtyard,true)
+
+- Speak with Elda
+* room(elda)
+
+- Visit Marn’s trade post
+* room(marn)
+
+- Check the notice board
+* room(notice)
+
+- Head to Riverside Hamlet
+* room(riverside)
+
+- Enter Old Growth Woods
+* room(woods)
+
+- Climb toward Broken Hills
+* room(broken_hills)
+
+- Pray at the shrine
+!chance
+* 70% say(The air feels heavy.)
+* 30% combat(corrupted_shrine)
+
+@room notice
+The board is cluttered with worn postings.
+
+- Missing Traps
+* quest(missing_traps,start,Clear wolves near the river.)
+
+- Water Runs Dark
+* quest(water_runs_dark,start,Investigate the flooded cellar.)
+
+- Debt to Bandits
+* quest(debt_to_bandits,start,Deal with bandits in the hills.)
+
+- The Runaway
+* quest(the_runaway,start,Find Lysa near the woods.)
+
+- Step away
+* room(courtyard)
+
+@npc elda
+Elda watches you closely.
+
+- Ask about the village
+* say(Brookhaven survives by balance, not truth.)
+
+- Ask about the woods
+* say(The roots run deep. Best not disturb them.)
+
+- Press her for answers
+* if(reputation>=1) say(Some doors stay buried for a reason.)
+
+- Leave
+* room(courtyard)
+
+@npc marn
+Marn grins from behind his stall.
+
+- Buy supplies
+* say(Potions and tools cost more when trouble brews.)
+
+- Sell pelts
+* if(flag:wolves_cleared) set(gold,+6)
+
+- Ask about rumors
+* say(Bandits, beasts, and worse under the trees.)
+
+- Leave
+* room(courtyard)
+
+@room riverside
+Water flows past a small hamlet.
+A mill creaks slowly.
+
+- Inspect the riverbank
+!chance
+* 60% combat(wolves_river)
+* 40% say(Tracks fade into mud.)
+
+- Visit the abandoned shack
+* room(shack)
+
+- Return
+* room(courtyard)
+
+@room shack
+The shack smells of rot.
+
+- Search inside
+!chance
+* 50% set(health,-10)
+* 50% say(Nothing but mold.)
+
+- Return
+* room(riverside)
+
+@room woods
+Ancient trees loom overhead.
+
+- Search for Lysa
+* room(lysa)
+
+- Approach fallen watchtower
+* room(watchtower)
+
+- Return
+* room(courtyard)
+
+@npc lysa
+Lysa steps back nervously.
+
+- Convince her to return
+* set(reputation,+1)
+* quest(the_runaway,complete)
+* room(courtyard)
+
+- Help her hide
+* flag(lysa_hidden,true)
+* set(reputation,-1)
+* quest(the_runaway,complete)
+* room(courtyard)
+
+@room watchtower
+Roots twist through stone ruins.
+
+- Examine the roots
+* if(flag:vault_unsealed) say(The vault yawns open.)
+* if(!flag:vault_unsealed) quest(stone_beneath_roots,start,Find the sealed vault.)
+
+- Dig deeper
+* if(reputation>=1) flag(vault_unsealed,true)
+* if(reputation>=1) quest(stone_beneath_roots,complete)
+* if(reputation>=1) room(vault)
+* if(reputation<1) say(The stone won’t budge.)
+
+- Return
+* room(woods)
+
+@room broken_hills
+Wind howls across shattered stone.
+
+- Approach bandit lookout
+!chance
+* 50% combat(bandit_fight)
+* 50% say(The lookout is empty.)
+
+- Pay off the bandits
+* if(gold>=10) set(gold,-10)
+* if(gold>=10) flag(bandits_dealt,true)
+* if(gold>=10) quest(debt_to_bandits,complete)
+
+- Return
+* room(courtyard)
+
+@room vault
+Ancient machinery hums beneath roots.
+The truth of Brookhaven lies here.
+
+- Step inside
+* win
