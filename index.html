@@ -46,13 +46,11 @@ button{
 </div>
 
 <script>
-/* ---------- STATE ---------- */
 let story={pages:{}};
 let state={ page:null, stats:{}, inv:[], flags:{}, quests:{} };
 
-const errorBox = document.getElementById("error");
+const errorBox=document.getElementById("error");
 
-/* ---------- LOAD ---------- */
 fetch("story.txt")
 .then(r=>{
   if(!r.ok) throw new Error("Failed to load story.txt ("+r.status+")");
@@ -62,20 +60,12 @@ fetch("story.txt")
 .then(startGame)
 .catch(showError);
 
-/* ---------- ERROR UI ---------- */
 function showError(e){
   errorBox.style.display="block";
-  errorBox.textContent =
-    "ERROR:\n"+e.message+
-    "\n\nChecklist:\n"+
-    "- story.txt exists\n"+
-    "- filename is lowercase\n"+
-    "- same folder as index.html\n"+
-    "- opened via https:// (not file://)";
+  errorBox.textContent="ERROR:\n"+e.message;
   console.error(e);
 }
 
-/* ---------- PARSER ---------- */
 function parseStory(txt){
   let lines=txt.split("\n");
   let mode=null, page=null, opt=null;
@@ -87,7 +77,8 @@ function parseStory(txt){
     if(line.startsWith("@")){
       let p=line.slice(1).split(" ");
       mode=p[0];
-      page=null; opt=null;
+      page=null;
+      opt=null;
 
       if(mode==="room"||mode==="npc"){
         story.pages[p[1]]={text:"",opts:[]};
@@ -97,14 +88,19 @@ function parseStory(txt){
     }
 
     if(mode==="stats"){
-      let [k,v]=line.split(":"); state.stats[k]=+v; continue;
+      let [k,v]=line.split(":");
+      state.stats[k]=+v;
+      continue;
     }
+
     if(mode==="inventory"){ state.inv.push(line); continue; }
+
     if(mode==="flags"){
       let [k,v]=line.split(":");
       state.flags[k]=(v==="true")?true:(+v||false);
       continue;
     }
+
     if(mode==="quests"){
       state.quests[line]={state:"inactive",step:"",stats:{}};
       continue;
@@ -116,11 +112,23 @@ function parseStory(txt){
         page.opts.push(opt);
         continue;
       }
-      if(line==="!chance"){ opt.chance=[]; continue; }
+
+      if(line==="!chance"){
+        if(!opt){
+          throw new Error("!chance used without a preceding option (-)");
+        }
+        opt.chance=[];
+        continue;
+      }
+
       if(line.startsWith("*")){
+        if(!opt){
+          throw new Error("Action (*) used without a preceding option (-)");
+        }
         (opt.chance||opt.acts).push(line.slice(1).trim());
         continue;
       }
+
       page.text+=line+"\n";
     }
   }
@@ -130,17 +138,16 @@ function parseStory(txt){
   }
 }
 
-/* ---------- GAME ---------- */
 function startGame(){
-  state.page = Object.keys(story.pages)[0];
+  state.page=Object.keys(story.pages)[0];
   render();
 }
 
 function render(){
-  stats.textContent =
+  stats.textContent=
     Object.entries(state.stats).map(e=>e.join(":")).join(" | ") || "No stats";
 
-  quests.textContent =
+  quests.textContent=
     Object.entries(state.quests)
       .filter(q=>q[1].state==="active")
       .map(q=>q[0]+": "+q[1].step)
@@ -162,6 +169,7 @@ function runOption(o){
   let acts=o.chance
     ? [o.chance[Math.floor(Math.random()*o.chance.length)]]
     : o.acts;
+
   acts.forEach(runAction);
   render();
 }
