@@ -6,150 +6,143 @@ day:1
 scrap:0
 stealth:1
 
-@room death
-You collapse in the Dead Zone.
-Your run is over.
-
-- Restart run
-* goto base
+@quest survive
+@quest final_reactor
 
 @room base
-You are inside the Safe Base.
-Concrete walls hum with failing power.
-
-- Check stash
-* give ammo
-* give medkit
+Safe Base — Day {day}
+You have limited time.
 
 - Visit trader
 * goto trader
 
 - Enter Dead Zone
-* goto highway
+* goto outskirts
+
+- Check status
+* goto status
+
+@room status
+Health: {health}
+Radiation: {rad}
+Days Remaining: {7-day}
+
+- Back
+* goto base
 
 @room trader
-The trader sizes you up.
+The trader waits.
 
 - Buy ammo (2 scrap)
 * stat scrap -2
 * stat ammo 4
 
-- Buy medkit (3 scrap)
-* stat scrap -3
-* give medkit
-
 - Buy stealth cloak (5 scrap)
 * stat scrap -5
 * stat stealth 2
 
-- Sell scrap loot
+- Sell scrap
 * stat scrap 2
 
 - Leave
 * goto base
 
-@room highway
-Wrecked vehicles stretch into fog.
-Radiation clicks softly.
+@room outskirts
+The Dead Zone stretches ahead.
 
-- Move to suburbs
+- Move to Factory
 * stat rad 2
-* goto suburbs
+* goto factory
 
 - Scavenge wrecks (attempts:2)
 * give scrap
 * stat ammo 1
 
-- Extract
+- Extract now
 * goto extract
 
-@room suburbs
-Collapsed houses and open streets.
+@room factory
+Dark machinery hums.
 
 - Sneak past raiders (attempts:1)
 * stat stealth 1
-* goto factory
+* goto metro
 
-- Fail the sneak
-* stat health -25
-* goto factory
-
-- Fight through
+- Fight raiders
 * stat health -20
-* goto factory
-
-@room factory
-Rusting machines loom overhead.
-
-- Search crates (attempts:2)
 * give scrap
-* give ammo
-
-- Stealth takedown (attempts:1)
-* stat stealth 1
-* give scrap
-
-- Alert the floor
-* stat health -30
-
-- Push deeper
-* stat rad 3
 * goto metro
 
 @room metro
 Flooded tunnels glow faintly.
 
-- Search medical cabinets (attempts:1)
+- Loot medical cabinets (attempts:1)
 * give medkit
 
-- Fight mutants
-* stat health -25
-* give scrap
+- Push deeper
+* stat rad 3
+* goto deeper_zone
 
 - Retreat
 * goto extract
 
+@room deeper_zone
+Radiation spikes violently.
+
+- Continue scavenging
+* stat rad 4
+* give scrap
+
+- Extract immediately
+* goto extract
+
 @room extract
-You fire the extraction flare.
-Enemies converge.
+Extraction flare burns bright.
 
-- Hold position
+- Hold until pickup
 * stat health -15
-* goto base_reset
+* goto base_return
 
-@room base_reset
+@room base_return
 You return to base.
 Radiation is scrubbed away.
-A day passes.
 
-- Continue
+- Rest
 * stat rad -999
 * stat day 1
+* goto day_check
+
+@room day_check
+Night falls.
+
+- Continue
 * goto base
 
-@room reactor_gate
-The reactor entrance looms.
-This is your last chance.
+- Attempt final mission
+* goto final_gate
+
+@room final_gate
+The reactor site looms.
+This is extremely dangerous.
 
 - Enter reactor
 * goto reactor
 
 @room reactor
-The core pulses violently.
-Guards pour in.
+Everything goes wrong at once.
 
-- Stealth approach (attempts:1)
+- Stealth shutdown (attempts:1)
 * stat stealth 2
 * stat ammo -2
-* goto reactor_end
+* goto ending
 
-- Brute force
+- Brute force shutdown
 * stat health -50
 * stat ammo -6
-* goto reactor_end
+* goto ending
 
-@room reactor_end
-The reactor powers down.
-The Dead Zone goes silent.
+@room ending
+The reactor dies.
+The Zone goes silent.
 
 - Finish
