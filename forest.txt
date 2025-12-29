@@ -1,10 +1,10 @@
 @expansion
 id:forest
 name:Dark Forest
-type:zone   # zone | town | safe
+type:zone
 
 @action
-label:Scout the forest
+label:Scout forest
 risk:low
 reward:money 15
 fail:health -10
