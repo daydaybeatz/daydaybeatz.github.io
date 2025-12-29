@@ -2,253 +2,181 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IF Engine v2.1</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Idle Extraction Shooter</title>
 
 <style>
-body{margin:0;background:#0e0e0e;color:#eee;font-family:system-ui,monospace}
-#app{max-width:860px;margin:auto;padding:12px}
-.panel{background:#1c1c1c;border:1px solid #333;padding:10px;margin-bottom:10px;border-radius:6px}
+body{margin:0;background:#0e0e0e;color:#eee;font-family:system-ui}
+#app{max-width:900px;margin:auto;padding:12px}
+.panel{background:#1b1b1b;border:1px solid #333;padding:10px;margin-bottom:10px;border-radius:6px}
 button{width:100%;min-height:44px;background:#262626;color:#fff;border:1px solid #444;border-radius:6px;padding:10px;text-align:left}
-button:disabled{opacity:.4}
-#options{display:flex;flex-direction:column;gap:8px}
-#inv,#equip,#stash{display:flex;flex-wrap:wrap;gap:6px}
-.item{background:#2a2a2a;padding:6px 10px;border-radius:6px;font-size:13px}
-.equipped{outline:2px solid #6aff9f}
-#log{white-space:pre-wrap;font-size:13px}
+button:hover{background:#303030}
+#doors,#actions{display:flex;flex-direction:column;gap:8px}
 .small{opacity:.75;font-size:13px}
+.log{font-size:13px;white-space:pre-wrap}
 </style>
 </head>
 
 <body>
 <div id="app">
 
-<div id="loader" class="panel">
-  <b>Select Game</b>
-  <div id="gameList"></div>
+<div class="panel">
+  <b>Status</b>
+  <div id="stats" class="small"></div>
 </div>
 
-<div id="game" style="display:none">
-  <div id="stats" class="panel small"></div>
-
-  <div class="panel">
-    <b>Equipment</b>
-    <div id="equip"></div>
-  </div>
-
-  <div class="panel">
-    <b>Inventory</b>
-    <div id="inv"></div>
-  </div>
-
-  <div class="panel">
-    <b>Stash</b>
-    <div id="stash"></div>
-  </div>
-
-  <div id="text" class="panel"></div>
-  <div id="options"></div>
-
-  <div class="panel">
-    <b>Log</b>
-    <div id="log"></div>
-  </div>
+<div class="panel">
+  <b>Main Hub</b>
+  <div id="doors"></div>
 </div>
+
+<div class="panel">
+  <b>Actions</b>
+  <div id="actions"></div>
+</div>
+
+<div class="panel">
+  <b>Log</b>
+  <div id="log" class="log"></div>
+</div>
+
 </div>
 
 <script>
-/* ================= CONFIG ================= */
-const RULES={
-  clamp:true,
-  radThreshold:6,
-  radDamage:2
-};
+/* ================= CORE STATE ================= */
 
-/* ================= STATE ================= */
-let story={rooms:{}};
-let state={
-  room:null,
-  stats:{},
+const state={
+  health:100,
+  rad:0,
+  money:50,
+  weapon:"rusted_pistol",
+  armor:null,
   inventory:[],
-  stash:[],
-  equip:{weapon:null,armor:null,cloak:null},
-  attempts:{},
   log:[]
 };
 
-/* ================= HELPERS ================= */
-const log=(m)=>{state.log.unshift(m);state.log=state.log.slice(0,10);}
-const clamp=()=>{for(let k in state.stats)state.stats[k]=Math.max(0,state.stats[k]);}
-const renderVars=t=>t.replace(/\{(\w+)\}/g,(_,k)=>state.stats[k]??"");
+/* ================= GAME RULES ================= */
 
-/* ================= LOAD GAME LIST ================= */
-fetch("games.json").then(r=>r.json()).then(list=>{
-  let gl=document.getElementById("gameList");
-  list.forEach(g=>{
-    let b=document.createElement("button");
-    b.textContent=g.title;
-    b.onclick=()=>loadGame(g.file);
-    gl.appendChild(b);
-  });
+const RULES={
+  radPerRun:2,
+  radThreshold:6,
+  radDamage:5,
+  baseHeal:10
+};
+
+/* ================= UI HELPERS ================= */
+
+const log=(m)=>{
+  state.log.unshift(m);
+  if(state.log.length>8) state.log.pop();
+};
+
+function render(){
+  if(state.rad>=RULES.radThreshold){
+    state.health-=RULES.radDamage;
+    log("Radiation burns your body.");
+  }
+
+  if(state.health<=0){
+    log("You died. Run failed.");
+    state.health=100;
+    state.rad=0;
+    state.money=Math.max(0,state.money-20);
+  }
+
+  stats.innerText=
+    `HP:${state.health} | RAD:${state.rad} | $:${state.money} | Weapon:${state.weapon}`;
+
+  logDiv.innerText=state.log.join("\n");
+}
+
+/* ================= EXPANSION LOADING ================= */
+
+let expansions={};
+
+fetch("game.json")
+.then(r=>r.json())
+.then(data=>{
+  data.expansions.forEach(loadExpansion);
 });
 
-/* ================= LOAD GAME ================= */
-function loadGame(file){
-  fetch(file).then(r=>r.text()).then(parse).then(start);
-}
-
-/* ================= PARSER ================= */
-function parse(txt){
-  story={rooms:{}};
-  state.inventory=[];
-  state.stash=[];
-  state.equip={weapon:null,armor:null,cloak:null};
-  state.stats={};
-  state.attempts={};
-  state.log=[];
-
-  let room=null,opt=null;
-
-  txt.split("\n").forEach(raw=>{
-    let l=raw.trim();
-    if(!l) return;
-
-    if(l.startsWith("@stats")) return;
-
-    if(!room && l.includes(":")){
-      let[k,v]=l.split(":");
-      state.stats[k]=+v;
-      return;
-    }
-
-    if(l.startsWith("@room")){
-      let id=l.split(" ")[1];
-      story.rooms[id]={text:"",options:[]};
-      room=story.rooms[id];
-      return;
-    }
-
-    if(room){
-      if(l.startsWith("-")){
-        let m=l.match(/\(attempts:(\d+)\)/);
-        opt={label:l.replace(/\(.+\)/,"").slice(1).trim(),acts:[],max:m?+m[1]:null};
-        room.options.push(opt);
-        return;
-      }
-      if(l.startsWith("*")){
-        opt.acts.push(l.slice(1).trim());
-        return;
-      }
-      room.text+=l+"\n";
-    }
+function loadExpansion(exp){
+  fetch(exp.file)
+  .then(r=>r.text())
+  .then(txt=>{
+    expansions[exp.id]=parseExpansion(txt,exp);
+    addDoor(exp);
   });
 }
 
-/* ================= START ================= */
-function start(){
-  document.getElementById("loader").style.display="none";
-  document.getElementById("game").style.display="block";
-  state.room=Object.keys(story.rooms)[0];
-  render();
+function addDoor(exp){
+  let b=document.createElement("button");
+  b.textContent=exp.name;
+  b.onclick=()=>enterExpansion(exp.id);
+  doors.appendChild(b);
 }
 
-/* ================= RENDER ================= */
-function render(){
-  clamp();
+/* ================= EXPANSION FORMAT ================= */
 
-  if(state.stats.rad>=RULES.radThreshold){
-    state.stats.health-=RULES.radDamage;
-    log("Radiation burns you.");
-    if(state.stats.health<=0){state.room="death";}
-  }
+function parseExpansion(txt,meta){
+  let e={id:meta.id,name:meta.name,actions:[]};
 
-  let r=story.rooms[state.room];
-
-  stats.textContent=Object.entries(state.stats).map(e=>e.join(":")).join(" | ");
-
-  equip.innerHTML="";
-  for(let s in state.equip){
-    let d=document.createElement("div");
-    d.className="item equipped";
-    d.textContent=s+": "+(state.equip[s]||"-");
-    equip.appendChild(d);
-  }
-
-  inv.innerHTML="";
-  state.inventory.forEach(i=>{
-    let d=document.createElement("div");
-    d.className="item";
-    d.textContent=i;
-    d.onclick=()=>useItem(i);
-    inv.appendChild(d);
+  txt.split("\n").forEach(l=>{
+    l=l.trim();
+    if(!l||l.startsWith("#")) return;
+    e.actions.push(l);
   });
 
-  stash.innerHTML="";
-  state.stash.forEach(i=>{
-    let d=document.createElement("div");
-    d.className="item";
-    d.textContent=i;
-    stash.appendChild(d);
-  });
+  return e;
+}
 
-  text.textContent=renderVars(r.text);
+/* ================= GAMEPLAY ================= */
 
-  options.innerHTML="";
-  r.options.forEach(o=>{
-    let key=state.room+"|"+o.label;
-    state.attempts[key]??=o.max;
-    if(o.max!==null && state.attempts[key]<=0) return;
+function enterExpansion(id){
+  actions.innerHTML="";
+  let e=expansions[id];
 
+  e.actions.forEach(a=>{
     let b=document.createElement("button");
-    b.textContent=o.label;
-    b.onclick=()=>{
-      if(o.max!==null) state.attempts[key]--;
-      o.acts.forEach(run);
-      render();
-    };
-    options.appendChild(b);
+    b.textContent=a;
+    b.onclick=()=>runAction(id,a);
+    actions.appendChild(b);
   });
-
-  logDiv.innerHTML=state.log.join("\n");
 }
 
-/* ================= ACTIONS ================= */
-function run(a){
-  let p=a.split(" ");
-  switch(p[0]){
-    case "goto": state.room=p[1]; log("Moved to "+p[1]); break;
-    case "stat": state.stats[p[1]]+=+p[2]; log(`${p[1]} ${p[2]}`); break;
-    case "give": state.inventory.push(p[1]); log("Found "+p[1]); break;
-    case "take":
-      if(state.stats.money>=+p[2]){
-        state.stats.money-=+p[2];
-        state.inventory.push(p[1]);
-        log("Bought "+p[1]);
-      } else log("Not enough money.");
-      break;
-    case "sell":
-      let idx=state.inventory.indexOf(p[1]);
-      if(idx>-1){
-        state.inventory.splice(idx,1);
-        state.stats.money+=+p[2];
-        log("Sold "+p[1]);
-      }
-      break;
-  }
-}
+function runAction(exp,action){
+  state.rad+=RULES.radPerRun;
 
-/* ================= ITEMS ================= */
-function useItem(it){
-  if(it.startsWith("weapon_")){state.equip.weapon=it;log("Weapon equipped");}
-  else if(it.startsWith("armor_")){state.equip.armor=it;log("Armor equipped");}
-  else if(it.startsWith("cloak_")){state.equip.cloak=it;log("Cloak equipped");}
-  else if(it==="medkit"){
-    state.stats.health+=25;
-    state.inventory.splice(state.inventory.indexOf(it),1);
-    log("Used medkit");
+  if(action.includes("Shop")){
+    state.money-=10;
+    log("Bought supplies.");
   }
+  else if(action.includes("Rest")){
+    state.health=Math.min(100,state.health+RULES.baseHeal);
+    state.rad=Math.max(0,state.rad-2);
+    log("You rest and recover.");
+  }
+  else if(action.includes("Scout")){
+    if(Math.random()<0.5){
+      state.money+=15;
+      log("Successful scouting. Loot found.");
+    }else{
+      state.health-=15;
+      log("Ambushed while scouting.");
+    }
+  }
+  else if(action.includes("Hunt")){
+    state.health-=20;
+    state.money+=30;
+    log("Enemies defeated. Loot secured.");
+  }
+
   render();
 }
+
+/* ================= INIT ================= */
+
+render();
 </script>
 </body>
 </html>
