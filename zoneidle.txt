@@ -1,0 +1,146 @@
+@stats
+health:100
+money:50
+scrap:10
+reputation:0
+day:1
+camp_level:1
+idle_scrap_rate:2
+
+@room death
+You have fallen in the Dead Zone.
+Your run ends.
+
+- Restart hideout
+* goto base
+
+@room base
+Your Hideout — Day {day}
+
+Your workshop produces scrap each idle tick.
+
+- View Status
+* goto status
+
+- Send scav run
+* goto scav_run
+
+- Send main expedition
+* goto expedition
+
+- Visit Trader
+* goto trader
+
+- Upgrade Workshop (Scrap 30)
+* stat scrap -30
+* stat idle_scrap_rate +2
+* result(Workshop improved. Idle scrap gain increased.)
+
+- Advance Day
+* stat day 1
+* goto base
+
+@room status
+Health: {health}
+Money: {money}
+Scrap: {scrap}
+Reputation: {reputation}
+Camp Level: {camp_level}
+
+- Back
+* goto base
+
+@room trader
+Midnight Shade, the trader.
+
+- Sell Scrap (10 scrap → 15 money)
+* if(stat:scrap>=10) stat scrap -10
+* stat money +15
+* result(Sold scrap)
+
+- Buy Medkit (20 money)
+* take medkit 20
+
+- Buy Armor: Light (40 money)
+* take armor_light 40
+
+- Buy Cloak: Camo (50 money)
+* take cloak_camo 50
+
+- Back
+* goto base
+
+@room scav_run
+You send a scav team.
+
+!chance
+* 50% stat scrap +20
+* 30% stat money +15
+* 20% stat health -10
+
+* stat reputation +1
+* stat day 1
+* goto base
+* result(Scav run complete.)
+
+@room expedition
+You prepare a full expedition.
+
+- Expedition: Cordon
+!chance
+* 40% stat scrap +30
+* 30% stat money +25
+* 20% stat reputation +5
+* 10% stat health -15
+
+* stat day 1
+* goto base
+* result(Cordon expedition complete.)
+
+- Expedition: Forest (req reputation>=5)
+* if(stat:reputation>=5) goto forest_run
+
+- Back
+* goto base
+
+@room forest_run
+Deep in the forest...
+
+!chance
+* 35% stat scrap +50
+* 25% stat money +40
+* 20% stat reputation +10
+* 20% stat health -25
+
+* stat day 1
+* goto base
+* result(Forest expedition complete.)
+
+@room final_gate
+The Black Site looms.
+Only those with high rep and gear dare.
+
+- Assault the Black Site (req reputation>=20)
+* if(stat:reputation>=20) goto black_site
+
+- Not yet
+* goto base
+
+@room black_site
+The final run begins.
+
+!chance
+* 30% stat reputation +20
+* 30% stat money +100
+* 20% stat scrap +80
+* 20% stat health -50
+
+* stat day 1
+* goto victory
+* result(Black Site run complete.)
+
+@room victory
+You survived the deepest reaches of the Zone.
+
+- Restart
+* goto base
