@@ -1,0 +1,41 @@
+@expansion
+id:forest
+name:Dark Forest
+summary:Broken exo-suits and wet leaves swallow sound. Rumors say a derailed supply train still bleeds tech here.
+
+@door
+label:Dark Forest Trailhead
+hint:scouting, salvage, high radiation pockets
+note:Static whispers in your headset as you cross the treeline.
+target:trail-edge
+
+@scene trail-edge
+title:Trail Edge
+desc:The forest entrance is marked by hazard tape and rusted lanterns. You smell ozone and wet bark.
+tags:Recon / Low Cover
+option:Scout the treeline => clearing | risk:medium | time:12 | success:credits+20,stamina-5,log:You flag a safe path.,note:Clearing marked on your map. | fail:hp-8,rads+1,log:Thorns slice your arms.
+option:Follow the radio ping => rail-wreck | risk:high | time:16 | success:flag:train-signal,log:The ping grows stronger.,stamina-8 | fail:hp-12,rads+2,log:Something heavy moves nearby.
+option:Forage for herbs => trail-edge | risk:low | time:10 | success:item:glowing herbs,log:Picked bioluminescent herbs.,hunger-4 | fail:hp-4,log:You cut yourself on a shard of glass.
+
+@scene clearing
+title:Shadowed Clearing
+desc:A semi-open patch with broken stone pillars. The air hums with dormant power.
+tags:Staging
+option:Deploy a signal flare => clearing | risk:medium | time:8 | success:heat+2,flag:flare-up,log:Your flare lights the canopy. | fail:heat+1,log:Flare fizzles but still warms the area.
+option:Approach strange monolith => monolith | risk:high | time:14 | success:note:Monolith etched with coordinates to an underground hatch.,credits+10,log:You copy down the markings. | fail:morale-6,rads+3,log:A wave of nausea knocks you down.
+option:Circle back => trail-edge | risk:low | time:6 | success:stamina+4 | fail:stamina+2
+
+@scene rail-wreck
+title:Derailed Freight
+desc:An overturned freight car lies cracked open. Loose wires spark near containers stamped with hazard symbols.
+tags:Loot / Hazard
+option:Extract reactor shard => rail-wreck | risk:deadly | time:18 | rad:3 | success:item:reactor shard,credits+35,log:You snag a hot shard with tongs.,note:Shards hum louder near water. | fail:hp-18,rads+4,log:Your gloves melt slightly.
+option:Search for rations => clearing | risk:medium | time:10 | success:item:military rations,hunger-6,log:Found sealed food packs. | fail:hunger+8,log:Rats scatter with crumbs.
+option:Listen in the dark => clearing | risk:low | time:6 | success:note:Heard a two-tone beacon repeating 07-19-07.,morale+3 | fail:morale-3,log:Only buzzing static answers.
+
+@scene monolith
+title:Obsidian Monolith
+desc:A human-height stone hums under your palm. Faint graffiti reads "IF YOU CAN READ THIS, RUN".
+tags:Weird / Lore
+option:Touch the glyphs => monolith | risk:high | time:9 | success:morale+4,flag:forest-glyph,log:Symbols burn into your memory. | fail:morale-6,hp-6,log:Your head pounds with echoes.
+option:Back away quietly => clearing | risk:low | time:4 | success:stamina+3,heat-1 | fail:stamina+1
