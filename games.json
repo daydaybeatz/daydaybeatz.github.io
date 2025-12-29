@@ -8,5 +8,10 @@
     "id": "test",
     "title": "Test Scenario",
     "file": "village1.txt"
+  },
+    {
+    "id": "zoneidle",
+    "title": "zone idle",
+    "file": "zoneidle.txt"
   }
 ]
