@@ -1,172 +1,141 @@
 @stats
 health:100
-ammo:6
 rad:0
+money:50
 day:1
-scrap:0
 stealth:1
-
-@quest survive
-@quest final_reactor
 
 @room death
 You collapse in the Dead Zone.
 Your run is over.
 
-- Restart run
+- Restart
 * goto base
 
 @room base
 Safe Base — Day {day}
-You have 7 days to prepare.
+Two excursions available today.
 
 - Visit trader
 * goto trader
 
-- Enter Dead Zone
-* goto outskirts
+- Enter Zone
+* goto highway
 
-- Check status
-* goto status
-
-- Rest (end day)
+- End Day
 * stat day 1
-* stat rad -999
-* goto base
-
-@room status
-Health: {health}
-Ammo: {ammo}
-Radiation: {rad}
-Scrap: {scrap}
-Stealth: {stealth}
-Day: {day}/7
-
-- Back
+* stat rad -3
 * goto base
 
 @room trader
-The trader eyes your gear.
+The trader sharpens a knife.
 
-- Buy ammo (2 scrap)
-* stat scrap -2
-* stat ammo 4
-
-- Buy medkit (3 scrap)
-* stat scrap -3
+- Buy medkit (15 money)
+* stat money -15
 * give medkit
 
-- Buy stealth cloak (5 scrap)
-* stat scrap -5
-* stat stealth 2
-
-- Sell scrap
-* stat scrap 2
+- Buy stealth cloak (30 money)
+* stat money -30
+* give cloak_shadow
 
 - Leave
 * goto base
 
-@room outskirts
-The Dead Zone stretches ahead.
-Radiation ticks upward.
+@room highway
+Wrecked vehicles crackle with radiation.
 
-- Go to Factory
+- Sneak past patrol (attempts:1)
+* stat stealth 1
+* stat rad 1
+* goto suburbs
+
+- Fail sneak
+* stat health -15
 * stat rad 2
+* goto suburbs
+
+- Fight patrol
+* stat health -20
+* stat rad 2
+* stat money 10
+* goto suburbs
+
+@room suburbs
+Collapsed homes hide danger.
+
+- Search houses (attempts:2)
+* stat money 8
+* stat rad 1
+
+- Move to factory
 * goto factory
 
-- Scavenge wrecks (attempts:2)
-* give scrap
-* stat ammo 1
-
-- Extract now
+- Extract
 * goto extract
 
 @room factory
-Rusting machines loom overhead.
+Machines loom overhead.
 
-- Sneak past raiders (attempts:1)
+- Stealth takedown (attempts:1)
 * stat stealth 1
-* goto metro
+* stat money 15
 
-- Fight raiders
-* stat health -20
-* give scrap
+- Alert enemies
+* stat health -25
+* stat rad 2
+
+- Continue
 * goto metro
 
 @room metro
-Flooded tunnels glow faintly.
+Flooded tunnels hum.
 
-- Loot medical cabinets (attempts:1)
+- Loot medical cache (attempts:1)
 * give medkit
 
-- Push deeper
-* stat rad 3
-* goto deeper_zone
+- Fight mutants
+* stat health -30
+* stat money 20
 
-- Retreat
-* goto extract
-
-@room deeper_zone
-Radiation spikes violently here.
-
-- Continue scavenging
-* stat rad 4
-* give scrap
-
-- Extract immediately
+- Extract
 * goto extract
 
 @room extract
-You fire the extraction flare.
-Enemies close in.
+You signal extraction.
 
-- Hold until pickup
-* stat health -15
+- Hold position
+* stat health -10
+* stat rad 1
 * goto base_return
 
 @room base_return
-The dropship pulls you out.
-Radiation is scrubbed away.
+You return to base.
 
-- Return to base
-* stat rad -999
-* stat day 1
+- Debrief
+* stat rad -2
 * goto base
 
 @room final_gate
-The reactor site looms ahead.
-This is extremely dangerous.
+The reactor awaits.
 
-- Enter the reactor
+- Enter reactor
 * goto reactor
 
-- Abort and return
-* goto base
-
 @room reactor
-Everything goes wrong at once.
-This is the final fight.
+This is the final mission.
 
 - Stealth shutdown (attempts:1)
 * stat stealth 2
-* stat ammo -2
+* stat health -20
 * goto victory
 
 - Brute force shutdown
-* stat health -50
-* stat ammo -6
+* stat health -60
 * goto victory
 
 @room victory
-The reactor goes silent.
-The Dead Zone is finally stable.
-
-- End run
-* goto credits
-
-@room credits
-You survived the Dead Zone.
-Thanks for playing.
+The Dead Zone stabilizes.
+You survived.
 
 - Restart
 * goto base
