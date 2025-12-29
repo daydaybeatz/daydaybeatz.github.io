@@ -13,7 +13,7 @@ button{width:100%;min-height:44px;background:#262626;color:#fff;border:1px solid
 button:hover{background:#303030}
 #doors,#actions{display:flex;flex-direction:column;gap:8px}
 .small{opacity:.75;font-size:13px}
-.log{font-size:13px;white-space:pre-wrap}
+.log{white-space:pre-wrap;font-size:13px}
 </style>
 </head>
 
@@ -49,22 +49,18 @@ const state={
   health:100,
   rad:0,
   money:50,
-  weapon:"rusted_pistol",
-  armor:null,
   inventory:[],
   log:[]
 };
 
-/* ================= GAME RULES ================= */
+/* ================= RULES ================= */
 
 const RULES={
-  radPerRun:2,
   radThreshold:6,
-  radDamage:5,
-  baseHeal:10
+  radDamage:5
 };
 
-/* ================= UI HELPERS ================= */
+/* ================= UI ================= */
 
 const log=(m)=>{
   state.log.unshift(m);
@@ -78,33 +74,30 @@ function render(){
   }
 
   if(state.health<=0){
-    log("You died. Run failed.");
+    log("You died. Returning to hub.");
     state.health=100;
     state.rad=0;
     state.money=Math.max(0,state.money-20);
   }
 
-  stats.innerText=
-    `HP:${state.health} | RAD:${state.rad} | $:${state.money} | Weapon:${state.weapon}`;
-
+  stats.innerText=`HP:${state.health} | RAD:${state.rad} | $:${state.money}`;
   logDiv.innerText=state.log.join("\n");
 }
 
-/* ================= EXPANSION LOADING ================= */
+/* ================= EXPANSIONS ================= */
 
 let expansions={};
 
 fetch("game.json")
 .then(r=>r.json())
-.then(data=>{
-  data.expansions.forEach(loadExpansion);
-});
+.then(data=>data.expansions.forEach(loadExpansion));
 
-function loadExpansion(exp){
-  fetch(exp.file)
+function loadExpansion(meta){
+  fetch(meta.file)
   .then(r=>r.text())
   .then(txt=>{
-    expansions[exp.id]=parseExpansion(txt,exp);
+    const exp=parseExpansion(txt);
+    expansions[exp.id]=exp;
     addDoor(exp);
   });
 }
@@ -112,63 +105,61 @@ function loadExpansion(exp){
 function addDoor(exp){
   let b=document.createElement("button");
   b.textContent=exp.name;
-  b.onclick=()=>enterExpansion(exp.id);
+  b.onclick=()=>enter(exp.id);
   doors.appendChild(b);
 }
 
-/* ================= EXPANSION FORMAT ================= */
+/* ================= PARSER ================= */
 
-function parseExpansion(txt,meta){
-  let e={id:meta.id,name:meta.name,actions:[]};
+function parseExpansion(txt){
+  let exp={actions:[]};
+  let action=null;
 
   txt.split("\n").forEach(l=>{
     l=l.trim();
     if(!l||l.startsWith("#")) return;
-    e.actions.push(l);
+
+    if(l==="@expansion") return;
+    if(l==="@action"){ action={}; exp.actions.push(action); return; }
+
+    let [k,v]=l.split(":");
+    if(action) action[k]=v;
+    else exp[k]=v;
   });
 
-  return e;
+  return exp;
 }
 
 /* ================= GAMEPLAY ================= */
 
-function enterExpansion(id){
+function enter(id){
   actions.innerHTML="";
-  let e=expansions[id];
-
-  e.actions.forEach(a=>{
+  expansions[id].actions.forEach(a=>{
     let b=document.createElement("button");
-    b.textContent=a;
-    b.onclick=()=>runAction(id,a);
+    b.textContent=a.label;
+    b.onclick=()=>runAction(a);
     actions.appendChild(b);
   });
 }
 
-function runAction(exp,action){
-  state.rad+=RULES.radPerRun;
+function runAction(a){
+  state.rad+=Number(a.rad||0);
 
-  if(action.includes("Shop")){
-    state.money-=10;
-    log("Bought supplies.");
-  }
-  else if(action.includes("Rest")){
-    state.health=Math.min(100,state.health+RULES.baseHeal);
-    state.rad=Math.max(0,state.rad-2);
-    log("You rest and recover.");
-  }
-  else if(action.includes("Scout")){
-    if(Math.random()<0.5){
-      state.money+=15;
-      log("Successful scouting. Loot found.");
-    }else{
-      state.health-=15;
-      log("Ambushed while scouting.");
+  const roll=Math.random();
+  let failChance=a.risk==="high"?0.5:a.risk==="medium"?0.3:0.15;
+
+  if(roll<failChance){
+    let [stat,val]=a.fail.split(" ");
+    state[stat]+=Number(val);
+    log(`Failed: ${a.label}`);
+  }else{
+    if(a.reward.startsWith("money")){
+      state.money+=Number(a.reward.split(" ")[1]);
     }
-  }
-  else if(action.includes("Hunt")){
-    state.health-=20;
-    state.money+=30;
-    log("Enemies defeated. Loot secured.");
+    if(a.reward.startsWith("item")){
+      state.inventory.push(a.reward.split(" ")[1]);
+    }
+    log(`Success: ${a.label}`);
   }
 
   render();
