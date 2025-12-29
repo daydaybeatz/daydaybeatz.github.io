@@ -2,188 +2,271 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>Interactive Fiction</title>
 
 <style>
-:root{
-  --bg:#111; --fg:#eee; --ui:#222; --border:#444; --accent:#9f9;
+body{
+  margin:0;
+  background:#111;
+  color:#eee;
+  font-family:system-ui, monospace;
 }
-html,body{
-  margin:0; padding:0; height:100%;
-  background:var(--bg); color:var(--fg);
-  font-family:system-ui, -apple-system, monospace;
-}
-#app{ max-width:720px; margin:0 auto; padding:14px; }
+#app{max-width:720px;margin:0 auto;padding:12px}
 .panel{
-  border:1px solid var(--border);
-  background:var(--ui);
-  padding:10px; margin-bottom:12px; border-radius:6px;
+  background:#222;border:1px solid #444;
+  padding:10px;margin-bottom:10px;border-radius:6px
 }
-#stats{ color:var(--accent); font-size:14px; }
-#quests{ color:#ccc; font-size:14px; }
-#text{ white-space:pre-wrap; font-size:16px; line-height:1.5; }
+#text{white-space:pre-wrap;font-size:16px}
 button{
-  width:100%; min-height:48px;
-  background:#333; color:#fff;
-  border:1px solid var(--border);
-  border-radius:6px; padding:10px;
-  font-size:16px; text-align:left;
+  width:100%;min-height:48px;
+  background:#333;color:#fff;
+  border:1px solid #555;border-radius:6px;
+  padding:10px;text-align:left
 }
-#error{ color:#f88; white-space:pre-wrap; }
+#options{display:flex;flex-direction:column;gap:8px}
+#hotbar{
+  display:flex;gap:8px;overflow-x:auto;
+  padding:8px;border-top:1px solid #333
+}
+.item{
+  min-width:64px;
+  padding:6px;
+  background:#333;border-radius:6px;
+  text-align:center;font-size:12px
+}
+.item.active{outline:2px solid #9f9}
+#combat{
+  display:none;
+  border:2px solid #800;
+  background:#200;
+}
 </style>
 </head>
 
 <body>
 <div id="app">
-  <div id="error" class="panel" style="display:none"></div>
   <div id="stats" class="panel"></div>
-  <div id="quests" class="panel"></div>
   <div id="text" class="panel"></div>
   <div id="options"></div>
+  <div id="combat" class="panel"></div>
+  <div id="hotbar"></div>
 </div>
 
 <script>
-let story={pages:{}};
-let state={ page:null, stats:{}, inv:[], flags:{}, quests:{} };
+/* ---------------- STATE ---------------- */
+let story={pages:{},combats:{},enemies:{}};
 
-const errorBox=document.getElementById("error");
+let state={
+  page:null,
+  stats:{},
+  inv:[],
+  equip:{weapon:null,armor:null},
+  flags:{},
+  attempts:{},
+  inCombat:false,
+  combat:null
+};
 
-fetch("story.txt")
-.then(r=>{
-  if(!r.ok) throw new Error("Failed to load story.txt ("+r.status+")");
-  return r.text();
-})
-.then(parseStory)
-.then(startGame)
-.catch(showError);
+/* ---------------- LOAD ---------------- */
+fetch("story.txt").then(r=>r.text()).then(parse).then(start);
 
-function showError(e){
-  errorBox.style.display="block";
-  errorBox.textContent="ERROR:\n"+e.message;
-  console.error(e);
-}
-
-function parseStory(txt){
+/* ---------------- PARSER (extended) ---------------- */
+function parse(txt){
   let lines=txt.split("\n");
-  let mode=null, page=null, opt=null;
+  let mode=null,page=null,opt=null;
 
   for(let raw of lines){
-    let line=raw.trim();
-    if(!line) continue;
+    let line=raw.trim(); if(!line) continue;
 
     if(line.startsWith("@")){
       let p=line.slice(1).split(" ");
-      mode=p[0];
-      page=null;
-      opt=null;
-
+      mode=p[0]; page=null; opt=null;
       if(mode==="room"||mode==="npc"){
-        story.pages[p[1]]={text:"",opts:[]};
+        story.pages[p[1]]={text:"",opts:[],enter:[]};
         page=story.pages[p[1]];
       }
+      if(mode==="combat"){
+        story.combats[p[1]]={enemies:[],win:[],lose:[],fleeable:false};
+        page=story.combats[p[1]];
+      }
+      if(mode==="enemy"){
+        story.enemies[p[1]]={};
+        page=story.enemies[p[1]];
+      }
       continue;
     }
 
-    if(mode==="stats"){
-      let [k,v]=line.split(":");
-      state.stats[k]=+v;
-      continue;
-    }
-
-    if(mode==="inventory"){ state.inv.push(line); continue; }
-
-    if(mode==="flags"){
-      let [k,v]=line.split(":");
-      state.flags[k]=(v==="true")?true:(+v||false);
-      continue;
-    }
-
-    if(mode==="quests"){
-      state.quests[line]={state:"inactive",step:"",stats:{}};
-      continue;
-    }
+    if(mode==="stats"){ let[a,b]=line.split(":"); state.stats[a]=+b; continue; }
 
     if(page){
+      if(line==="!enter"){ opt={enter:true}; continue; }
+
       if(line.startsWith("-")){
-        opt={label:line.slice(1).trim(),acts:[],chance:null};
-        page.opts.push(opt);
-        continue;
+        let m=line.match(/(.+?)\(attempts:(\d+)\)/);
+        opt={
+          label:m?m[1].trim():line.slice(1).trim(),
+          acts:[],chance:null,
+          attempts:m?+m[2]:null
+        };
+        page.opts.push(opt); continue;
       }
 
-      if(line==="!chance"){
-        if(!opt){
-          throw new Error("!chance used without a preceding option (-)");
-        }
-        opt.chance=[];
-        continue;
-      }
+      if(line==="!chance"){ opt.chance=[]; continue; }
 
       if(line.startsWith("*")){
-        if(!opt){
-          throw new Error("Action (*) used without a preceding option (-)");
-        }
-        (opt.chance||opt.acts).push(line.slice(1).trim());
+        let a=line.slice(1).trim();
+        if(opt?.enter) page.enter.push(a);
+        else (opt.chance||opt.acts).push(a);
         continue;
       }
+
+      if(line.startsWith("enemy:")){ page.enemies.push(line.split(":")[1]); continue; }
+      if(line.startsWith("fleeable:")){ page.fleeable=line.endsWith("true"); continue; }
 
       page.text+=line+"\n";
     }
   }
-
-  if(Object.keys(story.pages).length===0){
-    throw new Error("No @room sections found in story.txt");
-  }
 }
 
-function startGame(){
+/* ---------------- START ---------------- */
+function start(){
   state.page=Object.keys(story.pages)[0];
+  runEnter();
   render();
 }
 
-function render(){
-  stats.textContent=
-    Object.entries(state.stats).map(e=>e.join(":")).join(" | ") || "No stats";
+/* ---------------- ENTER ---------------- */
+function runEnter(){
+  let p=story.pages[state.page];
+  p.enter.forEach(runAction);
+}
 
-  quests.textContent=
-    Object.entries(state.quests)
-      .filter(q=>q[1].state==="active")
-      .map(q=>q[0]+": "+q[1].step)
-      .join("\n") || "No active quests";
+/* ---------------- RENDER ---------------- */
+function render(){
+  stats.innerText=
+    `HP:${state.stats.health} ATK:${atk()} DEF:${def()}`;
 
   let p=story.pages[state.page];
-  text.textContent=p.text;
+  text.innerText=p.text;
 
   options.innerHTML="";
   p.opts.forEach(o=>{
+    if(o.attempts!==null){
+      let k=state.page+"|"+o.label;
+      state.attempts[k] ??= 0;
+      if(state.attempts[k]>=o.attempts) return;
+    }
     let b=document.createElement("button");
-    b.textContent=o.label;
-    b.onclick=()=>runOption(o);
+    b.innerText=o.label;
+    b.onclick=()=>choose(o);
     options.appendChild(b);
   });
+
+  drawHotbar();
 }
 
-function runOption(o){
+/* ---------------- OPTION ---------------- */
+function choose(o){
+  if(o.attempts!==null){
+    let k=state.page+"|"+o.label;
+    state.attempts[k]++;
+  }
   let acts=o.chance
     ? [o.chance[Math.floor(Math.random()*o.chance.length)]]
     : o.acts;
-
   acts.forEach(runAction);
   render();
 }
 
+/* ---------------- ACTIONS ---------------- */
 function runAction(a){
-  if(a.startsWith("room(")) state.page=a.slice(5,-1);
-  else if(a.startsWith("set(")){
-    let [k,v]=a.slice(4,-1).split(",");
-    state.stats[k]+=Number(v);
+  if(a.startsWith("result(")){ alert(a.slice(7,-1)); return; }
+  if(a.startsWith("room(")){ state.page=a.slice(5,-1); runEnter(); return; }
+  if(a.startsWith("item(")){ state.inv.push(a.slice(5,-1)); return; }
+  if(a.startsWith("set(")){
+    let[k,v]=a.slice(4,-1).split(",");
+    state.stats[k]+=+v; return;
   }
-  else if(a.startsWith("say(")) alert(a.slice(4,-1));
-  else if(a==="win") alert("YOU WIN");
+  if(a.startsWith("combat(")){ startCombat(a.slice(7,-1)); return; }
 }
-</script>
 
+/* ---------------- COMBAT UI ---------------- */
+function startCombat(id){
+  let cmb=story.combats[id];
+  state.inCombat=true;
+  state.combat={
+    enemies:cmb.enemies.map(e=>({...story.enemies[e]})),
+    def:cmb
+  };
+  combat.style.display="block";
+  renderCombat();
+}
+
+function renderCombat(){
+  let c=state.combat;
+  combat.innerHTML="Enemies:\n"+
+    c.enemies.map(e=>`HP:${e.health}`).join("\n");
+
+  combat.innerHTML+=
+    `<br><button onclick="playerAttack()">Attack</button>`+
+    (c.def.fleeable?`<button onclick="endCombat(false)">Flee</button>`:"");
+}
+
+function playerAttack(){
+  let e=state.combat.enemies[0];
+  e.health-=Math.max(1,atk()-e.defense);
+  if(e.health<=0) state.combat.enemies.shift();
+  enemyTurn();
+}
+
+function enemyTurn(){
+  let c=state.combat;
+  c.enemies.forEach(e=>{
+    state.stats.health-=Math.max(1,e.attack-def());
+  });
+  if(state.stats.health<=0) return endCombat(false);
+  if(c.enemies.length===0) return endCombat(true);
+  renderCombat();
+}
+
+function endCombat(win){
+  combat.style.display="none";
+  let acts=win?state.combat.def.win:state.combat.def.lose;
+  acts.forEach(runAction);
+  state.inCombat=false;
+}
+
+/* ---------------- INVENTORY ---------------- */
+function drawHotbar(){
+  hotbar.innerHTML="";
+  state.inv.forEach(it=>{
+    let d=document.createElement("div");
+    d.className="item";
+    d.innerText=it;
+    d.onclick=()=>useItem(it);
+    hotbar.appendChild(d);
+  });
+}
+
+function useItem(it){
+  if(it.startsWith("potion")){
+    state.stats.health+=20;
+    state.inv.splice(state.inv.indexOf(it),1);
+  }
+  if(it.startsWith("weapon")){
+    state.equip.weapon=it;
+  }
+  if(it.startsWith("armor")){
+    state.equip.armor=it;
+  }
+  render();
+}
+
+/* ---------------- STATS ---------------- */
+function atk(){ return state.stats.attack + (state.equip.weapon?2:0); }
+function def(){ return state.stats.defense + (state.equip.armor?2:0); }
+</script>
 </body>
 </html>
