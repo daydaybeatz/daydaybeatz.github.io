@@ -59,8 +59,12 @@
     .scene-desc{margin:6px 0 10px;color:#cfd8ec;font-size:14px;}
     .badge{font-size:12px;border-radius:8px;padding:2px 8px;background:rgba(91,209,255,.08);border:1px solid rgba(91,209,255,.45);color:var(--accent-2);display:inline-flex;gap:6px;align-items:center;}
     .inline{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
-    .inventory{display:flex;flex-wrap:wrap;gap:6px;}
-    .inventory span{border:1px solid var(--border);padding:6px 10px;border-radius:8px;background:rgba(255,255,255,0.02);font-size:12px;}
+    .inventory{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+    .inventory button{border:1px solid var(--border);padding:8px 10px;border-radius:10px;background:rgba(255,255,255,0.02);font-size:13px;cursor:pointer;}
+    .inventory button:hover{border-color:var(--accent);}
+    .inventory h4{margin:4px 0;font-size:13px;color:#cfd8ec;width:100%;}
+    .inventory .pill-inline{margin-top:4px;}
+    .inventory .inline-actions{width:100%;display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
     .two-col{display:grid;grid-template-columns:1.1fr 1fr;gap:12px;}
     @media(max-width:900px){header{position:static;} .two-col{grid-template-columns:1fr;}}
   </style>
@@ -128,11 +132,17 @@
       credits:50,
       day:1,timeMinutes:6*60,
       inventory:["rusty flashlight"],
+      equipped:[],
       codex:["Hub online. No operations active."],
+      storage:{name:'Hub Storage',items:[]},
+      lootContainer:{name:'Supply Cache',items:['flare','ration bar','old coin']},
+      storageMode:false,
       flags:new Set(),
       log:["Systems cold-started. Waiting for expansions…"],
       location:{expansion:null,scene:null}
     };
+
+    const lootPool=['flare','ration bar','old coin','bandage','microcell','water flask','scrap wiring','patch kit','lockbox key'];
 
     const riskTable={low:0.07,medium:0.18,high:0.3,deadly:0.45};
     const expansions={};
@@ -158,11 +168,61 @@
       const m=mins%60;const h=Math.floor(mins/60)%24;const suffix=h>=12?"PM":"AM";
       const hour=((h+11)%12+1);return `${hour}:${m.toString().padStart(2,'0')} ${suffix}`;
     }
+    const setCodex=(msg)=>{ state.codex=[msg]; };
     const logMsg=(msg)=>{
       const stamp=`[Day ${state.day} // ${fmtTime(state.timeMinutes)}] ${msg}`;
       state.log.unshift(stamp);
       state.log=state.log.slice(0,14);
       renderLog();
+    }
+
+    const removeItem=(arr,item)=>{const idx=arr.indexOf(item); if(idx>=0) arr.splice(idx,1);};
+    const rollLoot=(count=3)=>Array.from({length:count},()=>lootPool[Math.floor(Math.random()*lootPool.length)]);
+    function equipItem(item){
+      if(state.equipped.includes(item)) return;
+      removeItem(state.inventory,item);
+      state.equipped.push(item);
+      setCodex(`${item} equipped.`);
+      logMsg(`Equipped ${item}.`);
+      renderInventory();
+    }
+    function unequipItem(item){
+      removeItem(state.equipped,item);
+      state.inventory.push(item);
+      setCodex(`${item} stowed.`);
+      logMsg(`Unequipped ${item}.`);
+      renderInventory();
+    }
+    function lootItem(item){
+      removeItem(state.lootContainer.items,item);
+      state.inventory.push(item);
+      setCodex(`${item} recovered from ${state.lootContainer.name}.`);
+      logMsg(`Looted ${item} from ${state.lootContainer.name}.`);
+      renderInventory();
+    }
+    function depositToStorage(item){
+      removeItem(state.inventory,item);
+      state.storage.items.push(item);
+      setCodex(`${item} stored in ${state.storage.name}.`);
+      logMsg(`Stored ${item} in ${state.storage.name}.`);
+      renderInventory();
+    }
+    function withdrawFromStorage(item){
+      removeItem(state.storage.items,item);
+      state.inventory.push(item);
+      setCodex(`${item} withdrawn from ${state.storage.name}.`);
+      logMsg(`Retrieved ${item} from ${state.storage.name}.`);
+      renderInventory();
+    }
+    function toggleStorageMode(){
+      state.storageMode=!state.storageMode;
+      renderInventory();
+    }
+    function restockLootContainer(){
+      state.lootContainer={name:'Field Locker',items:rollLoot(3)};
+      setCodex('New lootable container located.');
+      logMsg('A fresh lootable container is within reach.');
+      renderInventory();
     }
 
     /* ================= RENDERING ================= */
@@ -191,8 +251,59 @@
     }
 
     function renderInventory(){
-      dom.inventory.innerHTML = state.inventory.length? state.inventory.map(i=>`<span>${i}</span>`).join(''):`<span class="small">No gear collected.</span>`;
-      dom.codex.innerHTML = state.codex.map(note=>`• ${note}`).join('<br>');
+      dom.inventory.innerHTML='';
+      const buildSection=(title,items,handler,emptyText)=>{
+        const wrap=document.createElement('div');
+        wrap.className='inventory';
+        const heading=document.createElement('h4');
+        heading.textContent=title;
+        wrap.appendChild(heading);
+        if(!items.length){
+          const span=document.createElement('span');
+          span.className='small';
+          span.textContent=emptyText;
+          wrap.appendChild(span);
+        }else{
+          items.forEach(item=>{
+            const btn=document.createElement('button');
+            btn.textContent=item;
+            btn.onclick=()=>handler(item);
+            wrap.appendChild(btn);
+          });
+        }
+        dom.inventory.appendChild(wrap);
+      };
+
+      buildSection('Equipped',state.equipped,unequipItem,'Nothing equipped. Click gear below to equip.');
+
+      const inventoryHint=state.storageMode?`${state.storage.name} intake mode — click to store`:'Equip mode — click to ready gear';
+      const inventoryHandler=state.storageMode?depositToStorage:equipItem;
+      buildSection('Carried Gear',state.inventory,inventoryHandler,state.storageMode?'No carried items to store.':'No gear collected.');
+      const hint=document.createElement('div');
+      hint.className='inventory inline-actions';
+      const toggle=document.createElement('button');
+      toggle.textContent=state.storageMode?'Switch to equip mode':'Switch to storage mode';
+      toggle.onclick=toggleStorageMode;
+      const pill=document.createElement('span');
+      pill.className='pill-inline';
+      pill.textContent=inventoryHint;
+      hint.appendChild(toggle);
+      hint.appendChild(pill);
+      dom.inventory.appendChild(hint);
+
+      const lootEmpty=`${state.lootContainer.name} is empty.`;
+      buildSection(state.lootContainer.name,state.lootContainer.items,lootItem,lootEmpty);
+      const lootActions=document.createElement('div');
+      lootActions.className='inventory inline-actions';
+      const restockBtn=document.createElement('button');
+      restockBtn.textContent='Scout new lootable container';
+      restockBtn.onclick=restockLootContainer;
+      lootActions.appendChild(restockBtn);
+      dom.inventory.appendChild(lootActions);
+
+      buildSection(state.storage.name,state.storage.items,withdrawFromStorage,`${state.storage.name} is empty.`);
+
+      dom.codex.textContent = state.codex[state.codex.length-1] || '';
     }
 
     function renderLog(){
@@ -280,7 +391,7 @@
         token=token.trim(); if(!token) return;
         if(token.startsWith('item:')){ state.inventory.push(token.slice(5)); return; }
         if(token.startsWith('flag:')){ state.flags.add(token.slice(5)); return; }
-        if(token.startsWith('note:')){ state.codex.push(token.slice(5)); return; }
+        if(token.startsWith('note:')){ setCodex(token.slice(5)); return; }
         if(token.startsWith('log:')){ logMsg(token.slice(4)); return; }
         const match=token.match(/([a-zA-Z]+)([+-]\d+)/);
         if(match){
@@ -299,7 +410,7 @@
       if(outcome==='fail' && state.hp<=0){
         logMsg('You black out and are dragged back to the hub.');
         resetToHub();
-        state.hp=clamp(state.maxHp*0.6,1,state.maxHp);
+        state.hp=clamp(50,1,state.maxHp);
         state.morale=clamp(state.morale-10,0,state.maxMorale);
       }
     }
@@ -437,7 +548,7 @@
       btn.onclick=()=>{
         const start=exp.door?.target||Object.keys(exp.scenes)[0];
         enterScene(exp.meta.id,start);
-        if(exp.door?.note) state.codex.push(exp.door.note);
+        if(exp.door?.note) setCodex(exp.door.note);
         renderInventory();
       };
       dom.doors.appendChild(btn);
