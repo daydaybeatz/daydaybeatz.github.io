@@ -1,20 +1,19 @@
 @stats
 health:100
 rad:0
-money:50
+money:40
 day:1
 stealth:1
 
 @room death
-You collapse in the Dead Zone.
-Your run is over.
+You bleed out in the Dead Zone.
 
 - Restart
 * goto base
 
 @room base
 Safe Base — Day {day}
-Two excursions available today.
+You can make two excursions today.
 
 - Visit trader
 * goto trader
@@ -28,44 +27,53 @@ Two excursions available today.
 * goto base
 
 @room trader
-The trader sharpens a knife.
+The trader watches silently.
 
-- Buy medkit (15 money)
-* stat money -15
-* give medkit
+- Buy medkit (15)
+* take medkit 15
 
-- Buy stealth cloak (30 money)
-* stat money -30
-* give cloak_shadow
+- Buy scrap armor (30)
+* take armor_scrap 30
+
+- Buy stealth cloak (35)
+* take cloak_shadow 35
+
+- Sell artifact (25)
+* sell artifact 25
 
 - Leave
 * goto base
 
 @room highway
-Wrecked vehicles crackle with radiation.
+The cracked highway crawls with threats.
 
 - Sneak past patrol (attempts:1)
 * stat stealth 1
 * stat rad 1
+* stat money 10
 * goto suburbs
 
 - Fail sneak
-* stat health -15
+* stat health -20
 * stat rad 2
 * goto suburbs
 
 - Fight patrol
-* stat health -20
+* stat health -25
 * stat rad 2
-* stat money 10
+* stat money 15
 * goto suburbs
 
 @room suburbs
-Collapsed homes hide danger.
+Burned houses hide enemies.
 
 - Search houses (attempts:2)
-* stat money 8
 * stat rad 1
+* stat money 12
+
+- Scout rooftops (attempts:1)
+* stat stealth 1
+* stat money 8
 
 - Move to factory
 * goto factory
@@ -74,28 +82,32 @@ Collapsed homes hide danger.
 * goto extract
 
 @room factory
-Machines loom overhead.
+Machinery screams in the dark.
 
 - Stealth takedown (attempts:1)
 * stat stealth 1
-* stat money 15
+* stat money 20
 
-- Alert enemies
-* stat health -25
-* stat rad 2
+- Alert raiders
+* stat health -30
+* stat rad 3
+* stat money 25
 
-- Continue
+- Descend underground
 * goto metro
 
 @room metro
-Flooded tunnels hum.
+Flooded tunnels glow sickly green.
 
 - Loot medical cache (attempts:1)
 * give medkit
 
 - Fight mutants
-* stat health -30
-* stat money 20
+* stat health -35
+* stat money 30
+
+- Search corpse
+* give artifact
 
 - Extract
 * goto extract
@@ -104,33 +116,33 @@ Flooded tunnels hum.
 You signal extraction.
 
 - Hold position
-* stat health -10
+* stat health -15
 * stat rad 1
 * goto base_return
 
 @room base_return
-You return to base.
+The dropship hauls you out.
 
 - Debrief
 * stat rad -2
 * goto base
 
 @room final_gate
-The reactor awaits.
+The reactor site looms.
 
 - Enter reactor
 * goto reactor
 
 @room reactor
-This is the final mission.
+Everything goes wrong.
 
 - Stealth shutdown (attempts:1)
 * stat stealth 2
-* stat health -20
+* stat health -25
 * goto victory
 
 - Brute force shutdown
-* stat health -60
+* stat health -65
 * goto victory
 
 @room victory
