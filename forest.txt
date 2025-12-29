@@ -1,0 +1,25 @@
+@expansion
+id:forest
+name:Dark Forest
+type:zone   # zone | town | safe
+
+@action
+label:Scout the forest
+risk:low
+reward:money 15
+fail:health -10
+rad:1
+
+@action
+label:Hunt creatures
+risk:high
+reward:money 30
+fail:health -25
+rad:2
+
+@action
+label:Search ruins
+risk:medium
+reward:item artifact
+fail:health -15
+rad:1
