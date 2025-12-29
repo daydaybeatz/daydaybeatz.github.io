@@ -9,9 +9,16 @@ stealth:1
 @quest survive
 @quest final_reactor
 
+@room death
+You collapse in the Dead Zone.
+Your run is over.
+
+- Restart run
+* goto base
+
 @room base
 Safe Base — Day {day}
-You have limited time.
+You have 7 days to prepare.
 
 - Visit trader
 * goto trader
@@ -22,20 +29,32 @@ You have limited time.
 - Check status
 * goto status
 
+- Rest (end day)
+* stat day 1
+* stat rad -999
+* goto base
+
 @room status
 Health: {health}
+Ammo: {ammo}
 Radiation: {rad}
-Days Remaining: {7-day}
+Scrap: {scrap}
+Stealth: {stealth}
+Day: {day}/7
 
 - Back
 * goto base
 
 @room trader
-The trader waits.
+The trader eyes your gear.
 
 - Buy ammo (2 scrap)
 * stat scrap -2
 * stat ammo 4
+
+- Buy medkit (3 scrap)
+* stat scrap -3
+* give medkit
 
 - Buy stealth cloak (5 scrap)
 * stat scrap -5
@@ -49,8 +68,9 @@ The trader waits.
 
 @room outskirts
 The Dead Zone stretches ahead.
+Radiation ticks upward.
 
-- Move to Factory
+- Go to Factory
 * stat rad 2
 * goto factory
 
@@ -62,7 +82,7 @@ The Dead Zone stretches ahead.
 * goto extract
 
 @room factory
-Dark machinery hums.
+Rusting machines loom overhead.
 
 - Sneak past raiders (attempts:1)
 * stat stealth 1
@@ -87,7 +107,7 @@ Flooded tunnels glow faintly.
 * goto extract
 
 @room deeper_zone
-Radiation spikes violently.
+Radiation spikes violently here.
 
 - Continue scavenging
 * stat rad 4
@@ -97,52 +117,56 @@ Radiation spikes violently.
 * goto extract
 
 @room extract
-Extraction flare burns bright.
+You fire the extraction flare.
+Enemies close in.
 
 - Hold until pickup
 * stat health -15
 * goto base_return
 
 @room base_return
-You return to base.
+The dropship pulls you out.
 Radiation is scrubbed away.
 
-- Rest
+- Return to base
 * stat rad -999
 * stat day 1
-* goto day_check
-
-@room day_check
-Night falls.
-
-- Continue
 * goto base
 
-- Attempt final mission
-* goto final_gate
-
 @room final_gate
-The reactor site looms.
+The reactor site looms ahead.
 This is extremely dangerous.
 
-- Enter reactor
+- Enter the reactor
 * goto reactor
+
+- Abort and return
+* goto base
 
 @room reactor
 Everything goes wrong at once.
+This is the final fight.
 
 - Stealth shutdown (attempts:1)
 * stat stealth 2
 * stat ammo -2
-* goto ending
+* goto victory
 
 - Brute force shutdown
 * stat health -50
 * stat ammo -6
-* goto ending
+* goto victory
 
-@room ending
-The reactor dies.
-The Zone goes silent.
+@room victory
+The reactor goes silent.
+The Dead Zone is finally stable.
 
-- Finish
+- End run
+* goto credits
+
+@room credits
+You survived the Dead Zone.
+Thanks for playing.
+
+- Restart
+* goto base
