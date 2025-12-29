@@ -1,173 +1,399 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Idle Extraction Shooter</title>
-
-<style>
-body{margin:0;background:#0e0e0e;color:#eee;font-family:system-ui}
-#app{max-width:900px;margin:auto;padding:12px}
-.panel{background:#1b1b1b;border:1px solid #333;padding:10px;margin-bottom:10px;border-radius:6px}
-button{width:100%;min-height:44px;background:#262626;color:#fff;border:1px solid #444;border-radius:6px;padding:10px;text-align:left}
-button:hover{background:#303030}
-#doors,#actions{display:flex;flex-direction:column;gap:8px}
-.small{opacity:.75;font-size:13px}
-.log{white-space:pre-wrap;font-size:13px}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zero Lux - Text Extraction Engine</title>
+  <style>
+    :root{
+      color-scheme: dark;
+      --bg:#0c0c0f;
+      --panel:#121219;
+      --panel-2:#191925;
+      --accent:#5bd1ff;
+      --accent-2:#8fffa3;
+      --danger:#ff6b6b;
+      --muted:#a7b0c0;
+      --border:#202232;
+      --shadow:0 10px 40px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box;}
+    body{
+      margin:0;min-height:100vh;background:radial-gradient(circle at 20% 20%, rgba(70,120,255,.08), transparent 35%),
+      radial-gradient(circle at 80% 0%, rgba(80,255,200,.06), transparent 30%),
+      var(--bg);
+      color:#e8edf7;font-family:"Inter",system-ui,-apple-system,sans-serif;
+      line-height:1.45;
+      padding:12px;
+    }
+    #app{max-width:1200px;margin:auto;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));}
+    header{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 16px;background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);position:sticky;top:0;z-index:3;backdrop-filter:blur(6px);}
+    .title{font-size:20px;font-weight:700;letter-spacing:0.5px;display:flex;align-items:center;gap:8px;}
+    .tagline{font-size:13px;color:var(--muted);}
+    .pill{border:1px solid var(--border);border-radius:999px;padding:6px 10px;font-size:12px;color:var(--muted);background:rgba(255,255,255,0.02);}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);}
+    .panel h3{margin:0 0 6px;font-size:15px;letter-spacing:0.4px;}
+    .grid-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;}
+    .statline{display:grid;grid-template-columns:110px 1fr 60px;align-items:center;font-size:13px;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.03);}    
+    .bar{height:8px;background:#0f111a;border-radius:999px;overflow:hidden;border:1px solid #16182a;}
+    .bar span{display:block;height:100%;border-radius:999px;}
+    .bar.hp span{background:linear-gradient(90deg,#ff7a7a,#ffb36b);}    
+    .bar.stamina span{background:linear-gradient(90deg,#71d2ff,#82ffa4);}    
+    .bar.morale span{background:linear-gradient(90deg,#8aa9ff,#c3a1ff);}    
+    .bar.rads span{background:linear-gradient(90deg,#80ffd3,#fffd8a);}    
+    .bar.hunger span{background:linear-gradient(90deg,#ffc46a,#ff8c8c);}    
+    .bar.thirst span{background:linear-gradient(90deg,#6ad8ff,#7f9cff);}    
+    .rows{display:flex;flex-direction:column;gap:8px;}
+    .meta{color:var(--muted);font-size:13px;display:flex;flex-wrap:wrap;gap:10px;}
+    .meta b{color:#e8edf7;margin-right:4px;}
+    .pill-inline{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,0.03);font-size:12px;color:var(--muted);}    
+    button{appearance:none;border:1px solid var(--border);background:var(--panel-2);color:#f6f7ff;border-radius:10px;padding:10px 12px;font-size:14px;text-align:left;cursor:pointer;transition:transform .05s ease, border .15s ease;display:flex;justify-content:space-between;align-items:center;gap:6px;min-height:46px;}
+    button:hover{transform:translateY(-1px);border-color:var(--accent);}    
+    button:active{transform:translateY(0);}
+    .btn-secondary{background:#0f111a;}
+    .danger{border-color:rgba(255,107,107,.6);color:#ffc2c2;}
+    #doors,#actions{display:flex;flex-direction:column;gap:8px;}
+    .log{white-space:pre-wrap;font-size:13px;color:#d8e1ff;line-height:1.35;max-height:320px;overflow:auto;padding:10px;background:#0f111a;border:1px solid var(--border);border-radius:12px;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.02);}
+    .small{font-size:12px;color:var(--muted);}
+    .scene-title{font-size:17px;margin:0;color:#e8f1ff;}
+    .scene-desc{margin:6px 0 10px;color:#cfd8ec;font-size:14px;}
+    .badge{font-size:12px;border-radius:8px;padding:2px 8px;background:rgba(91,209,255,.08);border:1px solid rgba(91,209,255,.45);color:var(--accent-2);display:inline-flex;gap:6px;align-items:center;}
+    .inline{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+    .inventory{display:flex;flex-wrap:wrap;gap:6px;}
+    .inventory span{border:1px solid var(--border);padding:6px 10px;border-radius:8px;background:rgba(255,255,255,0.02);font-size:12px;}
+    .two-col{display:grid;grid-template-columns:1.1fr 1fr;gap:12px;}
+    @media(max-width:900px){header{position:static;} .two-col{grid-template-columns:1fr;}}
+  </style>
 </head>
-
 <body>
-<div id="app">
+  <div id="app">
+    <header>
+      <div>
+        <div class="title">Zero Lux Engine <span class="pill">text roguelite / extraction / survival</span></div>
+        <div class="tagline">Modular expansions stitched together by a hub room. Carry stories, loot, and scars between doors.</div>
+      </div>
+      <div class="pill">Build #: 0.1a — mobile friendly / keyboard-free ready</div>
+    </header>
 
-<div class="panel">
-  <b>Status</b>
-  <div id="stats" class="small"></div>
-</div>
+    <section class="panel two-col">
+      <div>
+        <h3>Status Board</h3>
+        <div id="stats"></div>
+        <div class="meta" id="meta"></div>
+      </div>
+      <div class="rows">
+        <div>
+          <h3>Hub Doors</h3>
+          <div id="doors"></div>
+          <div class="small" id="doorsHint">Loading expansions…</div>
+        </div>
+        <div>
+          <h3>Inventory & Codex</h3>
+          <div class="inventory" id="inventory"></div>
+          <div class="small" id="codex"></div>
+        </div>
+      </div>
+    </section>
 
-<div class="panel">
-  <b>Main Hub</b>
-  <div id="doors"></div>
-</div>
+    <section class="panel">
+      <div class="inline" style="justify-content:space-between;align-items:center;">
+        <div>
+          <p class="scene-title" id="sceneTitle">Hub: Signal Garage</p>
+          <p class="scene-desc" id="sceneDesc">An empty staging ground. Coil cables, radio static, and chalk markings on the floor wait for doors to be bolted on.</p>
+        </div>
+        <span class="badge" id="sceneBadge">Idle</span>
+      </div>
+      <div id="actions"></div>
+      <p class="small">Actions are context sensitive. Expansions can add new verbs (quests, scans, stealth crawls) and remix success/failure logic.</p>
+    </section>
 
-<div class="panel">
-  <b>Actions</b>
-  <div id="actions"></div>
-</div>
+    <section class="panel">
+      <h3>Signal Log</h3>
+      <div id="log" class="log"></div>
+    </section>
+  </div>
 
-<div class="panel">
-  <b>Log</b>
-  <div id="log" class="log"></div>
-</div>
+  <script>
+    /* ================= STATE & CONSTANTS ================= */
+    const state={
+      hp:92,maxHp:100,
+      stamina:100,maxStamina:100,
+      morale:60,maxMorale:100,
+      hunger:18,maxHunger:100,
+      thirst:22,maxThirst:100,
+      rads:0,heat:0,
+      credits:50,
+      day:1,timeMinutes:6*60,
+      inventory:["rusty flashlight"],
+      codex:["Hub online. No operations active."],
+      flags:new Set(),
+      log:["Systems cold-started. Waiting for expansions…"],
+      location:{expansion:null,scene:null}
+    };
 
-</div>
+    const riskTable={low:0.07,medium:0.18,high:0.3,deadly:0.45};
+    const expansions={};
 
-<script>
-/* ================= CORE STATE ================= */
+    const dom={
+      stats:document.getElementById('stats'),
+      meta:document.getElementById('meta'),
+      doors:document.getElementById('doors'),
+      doorsHint:document.getElementById('doorsHint'),
+      sceneTitle:document.getElementById('sceneTitle'),
+      sceneDesc:document.getElementById('sceneDesc'),
+      sceneBadge:document.getElementById('sceneBadge'),
+      actions:document.getElementById('actions'),
+      inventory:document.getElementById('inventory'),
+      codex:document.getElementById('codex'),
+      log:document.getElementById('log'),
+    };
 
-const state={
-  health:100,
-  rad:0,
-  money:50,
-  inventory:[],
-  log:[]
-};
-
-/* ================= RULES ================= */
-
-const RULES={
-  radThreshold:6,
-  radDamage:5
-};
-
-/* ================= UI ================= */
-
-const log=(m)=>{
-  state.log.unshift(m);
-  if(state.log.length>8) state.log.pop();
-};
-
-function render(){
-  if(state.rad>=RULES.radThreshold){
-    state.health-=RULES.radDamage;
-    log("Radiation burns your body.");
-  }
-
-  if(state.health<=0){
-    log("You died. Returning to hub.");
-    state.health=100;
-    state.rad=0;
-    state.money=Math.max(0,state.money-20);
-  }
-
-  stats.innerText=`HP:${state.health} | RAD:${state.rad} | $:${state.money}`;
-  logDiv.innerText=state.log.join("\n");
-}
-
-/* ================= EXPANSIONS ================= */
-
-let expansions={};
-
-fetch("game.json")
-.then(r=>r.json())
-.then(data=>data.expansions.forEach(loadExpansion));
-
-function loadExpansion(meta){
-  fetch(meta.file)
-  .then(r=>r.text())
-  .then(txt=>{
-    const exp=parseExpansion(txt);
-    expansions[exp.id]=exp;
-    addDoor(exp);
-  });
-}
-
-function addDoor(exp){
-  let b=document.createElement("button");
-  b.textContent=exp.name;
-  b.onclick=()=>enter(exp.id);
-  doors.appendChild(b);
-}
-
-/* ================= PARSER ================= */
-
-function parseExpansion(txt){
-  let exp={actions:[]};
-  let action=null;
-
-  txt.split("\n").forEach(l=>{
-    l=l.trim();
-    if(!l||l.startsWith("#")) return;
-
-    if(l==="@expansion") return;
-    if(l==="@action"){ action={}; exp.actions.push(action); return; }
-
-    let [k,v]=l.split(":");
-    if(action) action[k]=v;
-    else exp[k]=v;
-  });
-
-  return exp;
-}
-
-/* ================= GAMEPLAY ================= */
-
-function enter(id){
-  actions.innerHTML="";
-  expansions[id].actions.forEach(a=>{
-    let b=document.createElement("button");
-    b.textContent=a.label;
-    b.onclick=()=>runAction(a);
-    actions.appendChild(b);
-  });
-}
-
-function runAction(a){
-  state.rad+=Number(a.rad||0);
-
-  const roll=Math.random();
-  let failChance=a.risk==="high"?0.5:a.risk==="medium"?0.3:0.15;
-
-  if(roll<failChance){
-    let [stat,val]=a.fail.split(" ");
-    state[stat]+=Number(val);
-    log(`Failed: ${a.label}`);
-  }else{
-    if(a.reward.startsWith("money")){
-      state.money+=Number(a.reward.split(" ")[1]);
+    /* ================= UTILITIES ================= */
+    const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+    const pct=(v,max)=>Math.round((v/max)*100);
+    const fmtTime=(mins)=>{
+      const m=mins%60;const h=Math.floor(mins/60)%24;const suffix=h>=12?"PM":"AM";
+      const hour=((h+11)%12+1);return `${hour}:${m.toString().padStart(2,'0')} ${suffix}`;
     }
-    if(a.reward.startsWith("item")){
-      state.inventory.push(a.reward.split(" ")[1]);
+    const logMsg=(msg)=>{
+      const stamp=`[Day ${state.day} // ${fmtTime(state.timeMinutes)}] ${msg}`;
+      state.log.unshift(stamp);
+      state.log=state.log.slice(0,14);
+      renderLog();
     }
-    log(`Success: ${a.label}`);
-  }
 
-  render();
-}
+    /* ================= RENDERING ================= */
+    function renderBars(){
+      const rows=[
+        ['HP','hp','maxHp','hp'],
+        ['Stamina','stamina','maxStamina','stamina'],
+        ['Morale','morale','maxMorale','morale'],
+        ['Hunger','hunger','maxHunger','hunger'],
+        ['Hydration','thirst','maxThirst','thirst'],
+        ['Radiation','rads',100,'rads'],
+      ];
+      dom.stats.innerHTML=rows.map(([label,key,maxKey,cls])=>{
+        const val=state[key];const max=(typeof maxKey==='string')?state[maxKey]:maxKey;
+        const percent=clamp(pct(val,max),0,200);
+        return `<div class="statline"><div>${label}</div><div class="bar ${cls}"><span style="width:${percent}%;"></span></div><div>${Math.round(val)}/${max}</div></div>`;
+      }).join('');
+      dom.meta.innerHTML=`<span class="pill-inline"><b>Credits</b>${state.credits}</span>`+
+        `<span class="pill-inline"><b>Heat</b>${state.heat}</span>`+
+        `<span class="pill-inline"><b>Time</b>${fmtTime(state.timeMinutes)}</span>`+
+        `<span class="pill-inline"><b>Day</b>${state.day}</span>`;
+    }
 
-/* ================= INIT ================= */
+    function renderInventory(){
+      dom.inventory.innerHTML = state.inventory.length? state.inventory.map(i=>`<span>${i}</span>`).join(''):`<span class="small">No gear collected.</span>`;
+      dom.codex.innerHTML = state.codex.map(note=>`• ${note}`).join('<br>');
+    }
 
-render();
-</script>
+    function renderLog(){
+      dom.log.textContent=state.log.join('\n');
+    }
+
+    function renderScene(){
+      if(!state.location.expansion){
+        dom.actions.innerHTML='<button class="btn-secondary" disabled>Awaiting expansion doors…</button>';
+        return;
+      }
+      const exp=expansions[state.location.expansion];
+      const scene=exp.scenes[state.location.scene];
+      dom.sceneTitle.textContent=`${exp.meta.name} — ${scene.title||scene.id}`;
+      dom.sceneDesc.textContent=scene.desc||"Unmarked space.";
+      dom.sceneBadge.textContent=scene.tags?scene.tags:'Active';
+      dom.actions.innerHTML='';
+      if(!scene.options || !scene.options.length){
+        const b=document.createElement('button');
+        b.textContent='Return to Hub';
+        b.onclick=resetToHub;
+        dom.actions.appendChild(b);
+        return;
+      }
+      scene.options.forEach(opt=>{
+        const btn=document.createElement('button');
+        btn.innerHTML=`<span>${opt.label}</span><span class="small">${opt.risk || 'steady'} · ${opt.time||5}m</span>`;
+        btn.onclick=()=>runOption(exp,scene,opt);
+        if(opt.risk==='deadly') btn.classList.add('danger');
+        dom.actions.appendChild(btn);
+      });
+      const fallback=document.createElement('button');
+      fallback.classList.add('btn-secondary');
+      fallback.textContent='Slip back to hub';
+      fallback.onclick=resetToHub;
+      dom.actions.appendChild(fallback);
+    }
+
+    function enterScene(expansionId,sceneId){
+      state.location={expansion:expansionId,scene:sceneId};
+      renderScene();
+    }
+
+    /* ================= GAMEPLAY ================= */
+    function tickTime(minutes){
+      state.timeMinutes+=minutes;
+      while(state.timeMinutes>=24*60){ state.timeMinutes-=24*60; state.day++; }
+    }
+
+    function applyEffects(effectStr,outcome){
+      if(!effectStr) return;
+      effectStr.split(',').forEach(token=>{
+        token=token.trim(); if(!token) return;
+        if(token.startsWith('item:')){ state.inventory.push(token.slice(5)); return; }
+        if(token.startsWith('flag:')){ state.flags.add(token.slice(5)); return; }
+        if(token.startsWith('note:')){ state.codex.push(token.slice(5)); return; }
+        if(token.startsWith('log:')){ logMsg(token.slice(4)); return; }
+        const match=token.match(/([a-zA-Z]+)([+-]\d+)/);
+        if(match){
+          const stat=match[1]; const delta=Number(match[2]);
+          if(stat==='hp') state.hp=clamp(state.hp+delta,0,state.maxHp);
+          else if(stat==='stamina') state.stamina=clamp(state.stamina+delta,0,state.maxStamina);
+          else if(stat==='morale') state.morale=clamp(state.morale+delta,0,state.maxMorale);
+          else if(stat==='hunger') state.hunger=clamp(state.hunger+delta,0,state.maxHunger);
+          else if(stat==='thirst') state.thirst=clamp(state.thirst+delta,0,state.maxThirst);
+          else if(stat==='rads') state.rads=Math.max(0,state.rads+delta);
+          else if(stat==='heat') state.heat=Math.max(0,state.heat+delta);
+          else if(stat==='credits') state.credits=Math.max(0,state.credits+delta);
+        }
+      });
+      if(outcome==='fail' && state.hp<=0){
+        logMsg('You black out and are dragged back to the hub.');
+        resetToHub();
+        state.hp=clamp(state.maxHp*0.6,1,state.maxHp);
+        state.morale=clamp(state.morale-10,0,state.maxMorale);
+      }
+    }
+
+    function runOption(exp,scene,opt){
+      tickTime(Number(opt.time||5));
+      state.hunger=clamp(state.hunger+2,0,state.maxHunger);
+      state.thirst=clamp(state.thirst+3,0,state.maxThirst);
+      state.stamina=clamp(state.stamina-5,0,state.maxStamina);
+
+      const failChance=riskTable[opt.risk] ?? 0.12;
+      const roll=Math.random();
+      const success=roll>failChance;
+      applyEffects(success?opt.success:opt.fail, success?'success':'fail');
+      if(opt.rad) state.rads+=Number(opt.rad);
+      if(opt.heat) state.heat+=Number(opt.heat);
+
+      logMsg(`${success?'✓':'✖'} ${opt.label}${success?' succeeded':' failed'} (risk ${opt.risk||'steady'})`);
+
+      const next=opt.target && opt.target.trim();
+      if(next && success){
+        enterScene(exp.meta.id,next);
+      }
+      renderAll();
+    }
+
+    function resetToHub(){
+      state.location={expansion:null,scene:null};
+      dom.sceneTitle.textContent='Hub: Signal Garage';
+      dom.sceneDesc.textContent='An empty staging ground. Coil cables, radio static, and chalk markings on the floor wait for doors to be bolted on.';
+      dom.sceneBadge.textContent='Idle';
+      dom.actions.innerHTML='';
+    }
+
+    /* ================= EXPANSION LOADING ================= */
+    async function loadGames(){
+      try{
+        const res=await fetch('games.json');
+        const data=await res.json();
+        dom.doorsHint.textContent='';
+        data.expansions.forEach(meta=>loadExpansion(meta));
+      }catch(err){
+        dom.doorsHint.textContent='Unable to load games.json';
+        console.error(err);
+      }
+    }
+
+    async function loadExpansion(meta){
+      try{
+        const res=await fetch(meta.file);
+        const raw=await res.text();
+        const expansion=parseExpansion(raw);
+        expansion.meta.id=meta.id || expansion.meta.id;
+        expansion.meta.name=meta.name || expansion.meta.name || meta.id;
+        expansions[expansion.meta.id]=expansion;
+        addDoor(expansion);
+        logMsg(`Door bolted on: ${expansion.meta.name}`);
+      }catch(err){
+        logMsg(`Failed to load ${meta.id}`);
+        console.error(err);
+      }
+    }
+
+    function addDoor(exp){
+      const btn=document.createElement('button');
+      btn.innerHTML=`<span>${exp.door?.label||exp.meta.name}</span><span class="small">${exp.door?.hint||'Unknown signal'}</span>`;
+      btn.onclick=()=>{
+        const start=exp.door?.target||Object.keys(exp.scenes)[0];
+        enterScene(exp.meta.id,start);
+        if(exp.door?.note) state.codex.push(exp.door.note);
+        renderInventory();
+      };
+      dom.doors.appendChild(btn);
+    }
+
+    function parseOption(str){
+      // Format: Label => target | risk:low | time:10 | success:hp+5,credits+10 | fail:hp-5 | rad:1 | heat:1
+      const segments=str.split('|').map(s=>s.trim()).filter(Boolean);
+      const [labelPart,...rest]=segments;
+      const [label,target]=labelPart.split('=>').map(s=>s&&s.trim());
+      const opt={label:label||'Action',target:target||null,risk:'low',time:8,success:'',fail:'',rad:0,heat:0};
+      rest.forEach(seg=>{
+        const [k,vRaw]=seg.split(':');
+        const v=vRaw?.trim();
+        if(!k) return;
+        const key=k.trim().toLowerCase();
+        if(key==='risk') opt.risk=v;
+        else if(key==='time') opt.time=Number(v||8);
+        else if(key==='success') opt.success=v;
+        else if(key==='fail') opt.fail=v;
+        else if(key==='rad') opt.rad=Number(v||0);
+        else if(key==='heat') opt.heat=Number(v||0);
+      });
+      return opt;
+    }
+
+    function parseExpansion(raw){
+      const exp={meta:{},door:{},scenes:{}};
+      let scope='meta';
+      let currentScene=null;
+      raw.split(/\r?\n/).forEach(line=>{
+        line=line.trim();
+        if(!line || line.startsWith('#')) return;
+        if(line.startsWith('@expansion')){scope='meta';currentScene=null;return;}
+        if(line.startsWith('@door')){scope='door';currentScene=null;return;}
+        if(line.startsWith('@scene')){
+          scope='scene';
+          const id=line.split(/\s+/)[1] || `scene-${Object.keys(exp.scenes).length+1}`;
+          currentScene={id,title:'',desc:'',tags:'',options:[]};
+          exp.scenes[id]=currentScene;return;
+        }
+        const [key,...rest]=line.split(':');
+        const value=rest.join(':').trim();
+        if(scope==='meta') exp.meta[key]=value;
+        else if(scope==='door') exp.door[key]=value;
+        else if(scope==='scene' && currentScene){
+          if(key==='option') currentScene.options.push(parseOption(value));
+          else if(key==='desc') currentScene.desc += (currentScene.desc?' ':'') + value;
+          else currentScene[key]=value;
+        }
+      });
+      return exp;
+    }
+
+    function renderAll(){
+      renderBars();
+      renderInventory();
+      renderScene();
+      renderLog();
+    }
+
+    /* ================= INIT ================= */
+    renderAll();
+    loadGames();
+  </script>
 </body>
 </html>
