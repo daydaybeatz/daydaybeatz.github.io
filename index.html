@@ -107,25 +107,26 @@
     <div class="tabs">
       <div class="tab-buttons">
         <button data-tab="hub" class="active">Hub</button>
+        <button data-tab="inventory">Inventory</button>
         <button data-tab="field">Excursion</button>
         <button data-tab="log">Signal Log</button>
       </div>
       <div id="tab-hub" class="tab-content active">
         <div class="stack">
-          <section class="panel two-col">
-            <div>
-              <h3>Hub Doors</h3>
-              <div id="doors"></div>
-              <div class="small" id="doorsHint">Loading expansions…</div>
-            </div>
-            <div>
-              <h3>Inventory & Codex</h3>
-              <div class="inventory" id="inventory"></div>
-              <div class="small" id="codex"></div>
-            </div>
+          <section class="panel">
+            <h3>Hub Doors</h3>
+            <div id="doors"></div>
+            <div class="small" id="doorsHint">Loading expansions…</div>
           </section>
           <div class="muted-box" id="hubLock"></div>
         </div>
+      </div>
+      <div id="tab-inventory" class="tab-content">
+        <section class="panel">
+          <h3>Inventory & Codex</h3>
+          <div class="inventory" id="inventory"></div>
+          <div class="small" id="codex"></div>
+        </section>
       </div>
       <div id="tab-field" class="tab-content">
         <section class="panel">
@@ -162,7 +163,7 @@
       scrap:6,
       streak:0,
       credits:50,
-      day:1,timeMinutes:6*60,
+      day:1,dailyTasksUsed:0,timeMinutes:6*60,
       inventory:["rusty flashlight"],
       equipped:[],
       codex:["Hub online. No operations active."],
@@ -172,11 +173,13 @@
       flags:new Set(),
       log:["Systems cold-started. Waiting for expansions…"],
       location:{expansion:null,scene:null},
-      excursion:{active:false,steps:0,limit:12,startAt:null,extracting:false}
+      excursion:{active:false,steps:0,limit:12,startAt:null,extracting:false,reason:null}
     };
 
     const lootPool=['flare','ration bar','old coin','bandage','microcell','water flask','scrap wiring','patch kit','lockbox key'];
-    const TASK_MINUTES=0.5; // 30 seconds per action
+    const TASK_MINUTES=0; // time tracking no longer drives the loop
+    const DAILY_TASK_LIMIT=12;
+    const EXTRACTION_DURATION_MS=10000;
 
     const riskTable={low:0.07,medium:0.18,high:0.3,deadly:0.45};
     const expansions={};
@@ -200,6 +203,7 @@
       tabButtons:Array.from(document.querySelectorAll('.tab-buttons button')),
       tabContents:{
         hub:document.getElementById('tab-hub'),
+        inventory:document.getElementById('tab-inventory'),
         field:document.getElementById('tab-field'),
         log:document.getElementById('tab-log')
       }
@@ -292,7 +296,7 @@
         `<span class="pill-inline"><b>Signal</b>${state.signal}/${state.maxSignal}</span>`+
         `<span class="pill-inline"><b>Scrap</b>${state.scrap}</span>`+
         `<span class="pill-inline"><b>Streak</b>${state.streak}x</span>`+
-        `<span class="pill-inline"><b>Time</b>${fmtTime(state.timeMinutes)}</span>`+
+        `<span class="pill-inline"><b>Tasks</b>${state.dailyTasksUsed}/${DAILY_TASK_LIMIT}</span>`+
         `<span class="pill-inline"><b>Day</b>${state.day}</span>`;
     }
 
@@ -389,18 +393,16 @@
 
     function renderExcursionStatus(){
       if(!state.excursion.active){
-        dom.excursionStatus.innerHTML='<b>Hub status:</b> Ready · No excursions running.';
-        dom.tempoHint.textContent='Tasks now operate on a 30-second cadence. Build a rhythm, then trigger extraction when ready.';
+        dom.excursionStatus.innerHTML=`<b>Hub status:</b> Ready · Tasks used today ${state.dailyTasksUsed}/${DAILY_TASK_LIMIT}.`;
+        dom.tempoHint.textContent='Excursions consume your 12 daily tasks. Extraction or collapse ends the run; tasks reset tomorrow.';
         return;
       }
-      const spent=state.excursion.steps*30;
-      const remaining=Math.max(0,(state.excursion.limit-state.excursion.steps)*30);
-      const manualReady=excursionSeconds()>=30;
-      dom.excursionStatus.innerHTML=`<b>Excursion tempo:</b> ${state.excursion.steps}/${state.excursion.limit} tasks used · ${spent/60}m elapsed · ${remaining/60}m remaining`;
+      const remaining=Math.max(0,DAILY_TASK_LIMIT-state.dailyTasksUsed);
+      dom.excursionStatus.innerHTML=`<b>Excursion tempo:</b> ${state.dailyTasksUsed}/${DAILY_TASK_LIMIT} tasks used today${remaining?` · ${remaining} remaining`:' · daily allotment spent'}`;
       dom.tempoHint.textContent=state.excursion.extracting
-        ? 'Extraction underway. Hold position for 30 seconds while the winch hauls you out.'
-        : manualReady? 'Extraction can be called at any point now. Auto-extraction triggers when time is fully spent.'
-        : 'Extraction channel locks in after 30 seconds of field time. Keep pushing until it opens.';
+        ? 'Extraction underway. Hold position for 10 seconds while the winch hauls you out.'
+        : remaining? 'Each action consumes a daily task. Call extraction to bank progress before you run out.'
+        : 'Daily tasks are exhausted. Extraction will haul you back automatically.';
     }
 
     function renderHubAccess(){
@@ -411,43 +413,42 @@
 
     function appendExtractionControls(){
       if(!isOnExcursion()) return;
-      const manualReady=excursionSeconds()>=30;
       const progress=document.createElement('div');
       progress.className='small';
-      progress.textContent=`Tasks consumed: ${state.excursion.steps}/${state.excursion.limit} · Extraction ${manualReady?'ready':'locks in after 30s'}`;
+      progress.textContent=`Tasks consumed: ${state.dailyTasksUsed}/${DAILY_TASK_LIMIT} · Extraction available`;
       const call=document.createElement('button');
-      call.innerHTML='<span>Call extraction</span><span class="small">30s</span>';
-      call.disabled=!manualReady;
-      call.onclick=()=>startExtraction(false);
+      call.innerHTML='<span>Call extraction</span><span class="small">10s hold</span>';
+      call.onclick=()=>startExtraction(false,'manual');
       dom.actions.appendChild(progress);
       dom.actions.appendChild(call);
     }
 
-    function incrementExcursionStep(){
+    function incrementTaskUsage(){
       if(!isOnExcursion() || state.excursion.extracting) return;
-      state.excursion.steps=Math.min(state.excursion.steps+1,state.excursion.limit);
+      state.dailyTasksUsed=Math.min(state.dailyTasksUsed+1,DAILY_TASK_LIMIT);
+      state.excursion.steps=state.dailyTasksUsed;
       renderExcursionStatus();
-      if(state.excursion.steps>=state.excursion.limit){
-        logMsg('Extraction auto-triggered: field time fully spent.');
-        startExtraction(true);
+      if(state.dailyTasksUsed>=DAILY_TASK_LIMIT){
+        logMsg('Daily task allotment exhausted. Extraction auto-triggered.');
+        startExtraction(true,'day-limit');
       }
     }
 
-    function startExtraction(autoTriggered=false){
+    function startExtraction(autoTriggered=false,reason='manual'){
       if(!isOnExcursion() || state.excursion.extracting) return;
-      if(!autoTriggered && excursionSeconds()<30){
-        setCodex('Extraction uplink not ready. Wait 30 seconds on target.');
-        return;
-      }
       state.excursion.extracting=true;
-      logMsg(autoTriggered?'Auto-extraction initiated — time exhausted.':'Extraction requested — hold tight for 30 seconds.');
+      state.excursion.reason=reason;
+      logMsg(autoTriggered?'Auto-extraction initiated — daily tasks exhausted.':'Extraction requested — hold tight for 10 seconds.');
       renderAll();
-      setTimeout(completeExtraction,30000);
+      setTimeout(()=>completeExtraction(reason),EXTRACTION_DURATION_MS);
     }
 
-    function completeExtraction(){
-      tickTime(TASK_MINUTES);
+    function completeExtraction(reason){
       resetToHub();
+      if(reason==='day-limit'){
+        advanceDay();
+        logMsg('Task cycle complete. A new day begins.');
+      }
       logMsg('Extraction complete. Back in the hub.');
       setCodex('Hel winch hauls you home. Hub systems unlocked.');
       renderAll();
@@ -484,7 +485,7 @@
       }
       scene.options.forEach(opt=>{
         const btn=document.createElement('button');
-        btn.innerHTML=`<span>${opt.label}</span><span class="small">${opt.risk || 'steady'} · 0.5m</span>`;
+        btn.innerHTML=`<span>${opt.label}</span><span class="small">${opt.risk || 'steady'} · task</span>`;
         btn.onclick=()=>runOption(exp,scene,opt);
         if(opt.risk==='deadly') btn.classList.add('danger');
         dom.actions.appendChild(btn);
@@ -495,7 +496,7 @@
 
     function enterScene(expansionId,sceneId){
       state.location={expansion:expansionId,scene:sceneId};
-      state.excursion={active:true,steps:0,limit:12,startAt:Date.now(),extracting:false};
+      state.excursion={active:true,steps:state.dailyTasksUsed,limit:DAILY_TASK_LIMIT,startAt:Date.now(),extracting:false,reason:null};
       setActiveTab('field');
       renderScene();
     }
@@ -512,8 +513,16 @@
     }
 
     function tickTime(minutes){
-      state.timeMinutes+=minutes;
-      while(state.timeMinutes>=24*60){ state.timeMinutes-=24*60; state.day++; }
+      state.timeMinutes=(state.timeMinutes+minutes)%(24*60);
+    }
+
+    function advanceDay(){
+      state.day++;
+      state.dailyTasksUsed=0;
+      state.excursion.steps=0;
+      state.excursion.limit=DAILY_TASK_LIMIT;
+      state.excursion.reason=null;
+      state.timeMinutes=6*60;
     }
 
     function rollComplication(source){
@@ -597,13 +606,13 @@
       if(next && success){
         enterScene(exp.meta.id,next);
       }
-      incrementExcursionStep();
+      incrementTaskUsage();
       renderAll();
     }
 
     function resetToHub(){
       state.location={expansion:null,scene:null};
-      state.excursion={active:false,steps:0,limit:12,startAt:null,extracting:false};
+      state.excursion={active:false,steps:state.dailyTasksUsed,limit:DAILY_TASK_LIMIT,startAt:null,extracting:false,reason:null};
       dom.sceneTitle.textContent='Hub: Signal Garage';
       dom.sceneDesc.textContent='An empty staging ground. Coil cables, radio static, and chalk markings on the floor wait for doors to be bolted on.';
       dom.sceneBadge.textContent='Idle';
@@ -613,13 +622,13 @@
 
     function appendCoreActions(){
       const idle=document.createElement('button');
-      idle.innerHTML='<span>Pulse idle scan</span><span class="small">steady · 0.5m</span>';
+      idle.innerHTML='<span>Pulse idle scan</span><span class="small">steady task</span>';
       idle.onclick=runPulseScan;
       const rest=document.createElement('button');
-      rest.innerHTML='<span>Make camp</span><span class="small">low · 0.5m</span>';
+      rest.innerHTML='<span>Make camp</span><span class="small">low task</span>';
       rest.onclick=runCamp;
       const convert=document.createElement('button');
-      convert.innerHTML='<span>Cash in signal</span><span class="small">trade · 0.5m</span>';
+      convert.innerHTML='<span>Cash in signal</span><span class="small">trade task</span>';
       convert.onclick=burnSignal;
       dom.actions.appendChild(idle);
       dom.actions.appendChild(rest);
@@ -633,7 +642,7 @@
       state.heat=clamp(state.heat+1,0,999);
       state.thirst=clamp(state.thirst+1,0,state.maxThirst);
       logMsg(`Signal trickle captured (+${pulse}).`);
-      incrementExcursionStep();
+      incrementTaskUsage();
       renderAll();
     }
 
@@ -648,7 +657,7 @@
       state.streak=0;
       logMsg('You bunker down, patch gear, and reset momentum.');
       rollComplication('camp');
-      incrementExcursionStep();
+      incrementTaskUsage();
       renderAll();
     }
 
@@ -663,7 +672,7 @@
       state.credits+=payout;
       state.scrap=clamp(state.scrap+1,0,999);
       logMsg(`Signal monetized for ${payout} credits and salvage.`);
-      incrementExcursionStep();
+      incrementTaskUsage();
       renderAll();
     }
 
