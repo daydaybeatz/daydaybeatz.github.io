@@ -20,10 +20,10 @@ button{width:100%;min-height:48px;background:#333;color:#fff;border:1px solid #5
 
 <body>
 <div id="app">
+
   <div id="loader" class="panel">
-    <div>Enter game file to load:</div>
-    <input id="gamefile" value="game.txt" style="width:100%;padding:8px">
-    <button onclick="loadGame()">Load Game</button>
+    <div>Select a game:</div>
+    <div id="gameList"></div>
   </div>
 
   <div id="game" style="display:none">
@@ -33,6 +33,7 @@ button{width:100%;min-height:48px;background:#333;color:#fff;border:1px solid #5
     <div id="options"></div>
     <div id="inventory" class="panel"></div>
   </div>
+
 </div>
 
 <script>
@@ -45,15 +46,36 @@ let state={
   attempts:{}
 }
 
-function loadGame(){
-  let file=document.getElementById("gamefile").value
-  fetch(file).then(r=>{
+/* ---------- LOAD GAME LIST ---------- */
+fetch("games.json")
+.then(r=>r.json())
+.then(showGames)
+.catch(()=>alert("games.json missing"))
+
+function showGames(list){
+  let gl=document.getElementById("gameList")
+  gl.innerHTML=""
+  list.forEach(g=>{
+    let b=document.createElement("button")
+    b.innerText=g.title
+    b.onclick=()=>loadGame(g.file)
+    gl.appendChild(b)
+  })
+}
+
+/* ---------- LOAD GAME ---------- */
+function loadGame(file){
+  fetch(file)
+  .then(r=>{
     if(!r.ok) throw "Failed to load "+file
     return r.text()
-  }).then(parse).then(start)
+  })
+  .then(parse)
+  .then(start)
   .catch(e=>alert(e))
 }
 
+/* ---------- PARSER ---------- */
 function parse(txt){
   story={rooms:{}}
   state.stats={}
@@ -75,9 +97,7 @@ function parse(txt){
       continue
     }
 
-    if(l.startsWith("@stats")){
-      continue
-    }
+    if(l.startsWith("@stats")) continue
 
     if(l.includes(":") && !room){
       let [k,v]=l.split(":")
@@ -114,6 +134,7 @@ function parse(txt){
   }
 }
 
+/* ---------- START ---------- */
 function start(){
   document.getElementById("loader").style.display="none"
   document.getElementById("game").style.display="block"
@@ -121,6 +142,7 @@ function start(){
   render()
 }
 
+/* ---------- RENDER ---------- */
 function render(){
   let r=story.rooms[state.room]
 
@@ -159,6 +181,7 @@ function render(){
   })
 }
 
+/* ---------- ACTIONS ---------- */
 function run(a){
   if(a.startsWith("goto")){
     state.room=a.split(" ")[1]
