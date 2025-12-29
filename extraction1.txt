@@ -1,0 +1,42 @@
+@stats
+health:100
+ammo:6
+scrap:0
+
+@quest extract
+
+@room outskirts
+You crouch behind rusted cars at the edge of the Zone.
+The air crackles with distant gunfire.
+
+- Move toward the radio tower
+* goto tower
+
+- Search the wrecks (attempts:2)
+* give scrap
+* stat ammo 2
+
+@room tower
+The radio tower looms above the fog.
+An extraction flare could be fired here.
+
+- Fight scavengers
+* stat health -20
+* give scrap
+
+- Fire extraction flare
+* goto extraction
+
+@room extraction
+The flare burns bright.
+Something is coming.
+
+- Hold position
+* stat health -30
+* goto end
+
+@room end
+A dropship roars overhead.
+You’re pulled from the Zone.
+
+- Finish
