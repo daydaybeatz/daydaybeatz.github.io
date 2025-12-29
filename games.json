@@ -1,17 +1,19 @@
-[
-  {
-    "id": "dead_zone",
-    "title": "Dead Zone: Seven Days Left",
-    "file": "extraction1.txt"
-  },
-  {
-    "id": "test",
-    "title": "Test Scenario",
-    "file": "village1.txt"
-  },
+{
+  "expansions": [
     {
-    "id": "zoneidle",
-    "title": "zone idle",
-    "file": "zoneidle.txt"
-  }
-]
+      "id": "town",
+      "name": "Rust Town",
+      "file": "expansions/town.txt"
+    },
+    {
+      "id": "safehouse",
+      "name": "Abandoned Safehouse",
+      "file": "expansions/safehouse.txt"
+    },
+    {
+      "id": "forest",
+      "name": "Dark Forest",
+      "file": "expansions/forest.txt"
+    }
+  ]
+}
