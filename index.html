@@ -182,6 +182,7 @@
       }).join('');
       dom.meta.innerHTML=`<span class="pill-inline"><b>Credits</b>${state.credits}</span>`+
         `<span class="pill-inline"><b>Heat</b>${state.heat}</span>`+
+        `<span class="pill-inline"><b>Pressure</b>${Math.round(calcPressure()*100)}%</span>`+
         `<span class="pill-inline"><b>Signal</b>${state.signal}/${state.maxSignal}</span>`+
         `<span class="pill-inline"><b>Scrap</b>${state.scrap}</span>`+
         `<span class="pill-inline"><b>Streak</b>${state.streak}x</span>`+
@@ -243,9 +244,34 @@
     }
 
     /* ================= GAMEPLAY ================= */
+    function calcPressure(){
+      const hungerPressure=state.hunger>70?0.08:0;
+      const thirstPressure=state.thirst>70?0.08:0;
+      const fatiguePressure=state.stamina<30?0.06:0;
+      const radiationPressure=state.rads*0.01;
+      const heatPressure=state.heat*0.012;
+      const base=0.06;
+      return clamp(base+hungerPressure+thirstPressure+fatiguePressure+radiationPressure+heatPressure,0,0.85);
+    }
+
     function tickTime(minutes){
       state.timeMinutes+=minutes;
       while(state.timeMinutes>=24*60){ state.timeMinutes-=24*60; state.day++; }
+    }
+
+    function rollComplication(source){
+      const pressure=calcPressure();
+      if(Math.random()>pressure) return;
+      const complications=[
+        {desc:'A distant tracker pings your heat signature.',effects:'heat+2,morale-2'},
+        {desc:'An unseen stalker snatches some scrap.',effects:'scrap-2,heat+1'},
+        {desc:'Hunger cramps slow you down.',effects:'stamina-6,hp-3'},
+        {desc:'Static surge fries a component.',effects:'credits-6,heat+1'},
+        {desc:'Radiation spike makes your skin crawl.',effects:'rads+2,hp-4'}
+      ];
+      const hit=complications[Math.floor(Math.random()*complications.length)];
+      applyEffects(hit.effects,'fail');
+      logMsg(`Complication (${source}): ${hit.desc}`);
     }
 
     function applyEffects(effectStr,outcome){
@@ -267,6 +293,7 @@
           else if(stat==='rads') state.rads=Math.max(0,state.rads+delta);
           else if(stat==='heat') state.heat=Math.max(0,state.heat+delta);
           else if(stat==='credits') state.credits=Math.max(0,state.credits+delta);
+          else if(stat==='scrap') state.scrap=Math.max(0,state.scrap+delta);
         }
       });
       if(outcome==='fail' && state.hp<=0){
@@ -305,6 +332,8 @@
       }
 
       logMsg(`${success?'✓':'✖'} ${opt.label}${success?' succeeded':' failed'} (risk ${opt.risk||'steady'})`);
+
+      rollComplication('fieldwork');
 
       const next=opt.target && opt.target.trim();
       if(next && success){
@@ -356,6 +385,7 @@
       state.heat=Math.max(0,state.heat-3);
       state.streak=0;
       logMsg('You bunker down, patch gear, and reset momentum.');
+      rollComplication('camp');
       renderAll();
     }
 
@@ -479,6 +509,15 @@
       state.signal=clamp(state.signal+drip,0,state.maxSignal);
       state.hunger=clamp(state.hunger+1,0,state.maxHunger);
       state.thirst=clamp(state.thirst+1,0,state.maxThirst);
+      if(state.hunger>=90){
+        applyEffects('hp-3,morale-2','fail');
+        logMsg('Starvation gnaws at you while you hesitate.');
+      }
+      if(state.thirst>=90){
+        applyEffects('hp-4,stamina-5','fail');
+        logMsg('Dehydration blurs your vision.');
+      }
+      rollComplication('idle time');
       if(state.timeMinutes%60===0){
         logMsg('The hub crackles. Passive signal trickles in.');
       }
