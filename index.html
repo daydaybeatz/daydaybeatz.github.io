@@ -26,8 +26,8 @@
       line-height:1.45;
       padding:12px;
     }
-    #app{max-width:1200px;margin:auto;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));}
-    header{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 16px;background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);position:sticky;top:0;z-index:3;backdrop-filter:blur(6px);}
+    #app{max-width:1200px;margin:auto;display:flex;flex-direction:column;gap:12px;}
+    header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 16px;background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);position:sticky;top:0;z-index:3;backdrop-filter:blur(6px);}
     .title{font-size:20px;font-weight:700;letter-spacing:0.5px;display:flex;align-items:center;gap:8px;}
     .tagline{font-size:13px;color:var(--muted);}
     .pill{border:1px solid var(--border);border-radius:999px;padding:6px 10px;font-size:12px;color:var(--muted);background:rgba(255,255,255,0.02);}
@@ -66,7 +66,18 @@
     .inventory .pill-inline{margin-top:4px;}
     .inventory .inline-actions{width:100%;display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
     .two-col{display:grid;grid-template-columns:1.1fr 1fr;gap:12px;}
-    @media(max-width:900px){header{position:static;} .two-col{grid-template-columns:1fr;}}
+    .tabs{background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);}
+    .tab-buttons{display:flex;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap;background:rgba(255,255,255,0.02);border-radius:12px 12px 0 0;}
+    .tab-buttons button{flex:1 1 120px;text-align:center;justify-content:center;border-radius:10px;padding:10px 12px;border:1px solid var(--border);background:#0f111a;color:#e8edf7;min-height:40px;}
+    .tab-buttons button.active{border-color:var(--accent);background:rgba(91,209,255,0.08);}
+    .tab-buttons button:disabled{opacity:0.35;cursor:not-allowed;border-style:dashed;}
+    .tab-content{display:none;padding:12px;}
+    .tab-content.active{display:block;}
+    .muted-box{padding:14px 16px;border-radius:10px;border:1px dashed var(--border);color:var(--muted);background:rgba(255,255,255,0.03);}
+    .stack{display:flex;flex-direction:column;gap:12px;}
+    .excursion-status{font-size:13px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+    .excursion-status b{color:#e8edf7;}
+    @media(max-width:900px){header{position:static;} .two-col{grid-template-columns:1fr;} .tab-buttons button{flex:1 1 100%;}}
   </style>
 </head>
 <body>
@@ -79,42 +90,63 @@
       <div class="pill">Build #: 0.1a — mobile friendly / keyboard-free ready</div>
     </header>
 
-    <section class="panel two-col">
-      <div>
-        <h3>Status Board</h3>
-        <div id="stats"></div>
-        <div class="meta" id="meta"></div>
-      </div>
-      <div class="rows">
+    <section class="panel">
+      <div class="two-col">
         <div>
-          <h3>Hub Doors</h3>
-          <div id="doors"></div>
-          <div class="small" id="doorsHint">Loading expansions…</div>
+          <h3>Status Board</h3>
+          <div id="stats"></div>
+          <div class="meta" id="meta"></div>
         </div>
-        <div>
-          <h3>Inventory & Codex</h3>
-          <div class="inventory" id="inventory"></div>
-          <div class="small" id="codex"></div>
+        <div class="rows">
+          <div class="excursion-status" id="excursionStatus"></div>
+          <div class="muted-box" id="tempoHint"></div>
         </div>
       </div>
     </section>
 
-    <section class="panel">
-      <div class="inline" style="justify-content:space-between;align-items:center;">
-        <div>
-          <p class="scene-title" id="sceneTitle">Hub: Signal Garage</p>
-          <p class="scene-desc" id="sceneDesc">An empty staging ground. Coil cables, radio static, and chalk markings on the floor wait for doors to be bolted on.</p>
-        </div>
-        <span class="badge" id="sceneBadge">Idle</span>
+    <div class="tabs">
+      <div class="tab-buttons">
+        <button data-tab="hub" class="active">Hub</button>
+        <button data-tab="field">Excursion</button>
+        <button data-tab="log">Signal Log</button>
       </div>
-      <div id="actions"></div>
-      <p class="small">Actions are context sensitive. Expansions can add new verbs (quests, scans, stealth crawls) and remix success/failure logic.</p>
-    </section>
-
-    <section class="panel">
-      <h3>Signal Log</h3>
-      <div id="log" class="log"></div>
-    </section>
+      <div id="tab-hub" class="tab-content active">
+        <div class="stack">
+          <section class="panel two-col">
+            <div>
+              <h3>Hub Doors</h3>
+              <div id="doors"></div>
+              <div class="small" id="doorsHint">Loading expansions…</div>
+            </div>
+            <div>
+              <h3>Inventory & Codex</h3>
+              <div class="inventory" id="inventory"></div>
+              <div class="small" id="codex"></div>
+            </div>
+          </section>
+          <div class="muted-box" id="hubLock"></div>
+        </div>
+      </div>
+      <div id="tab-field" class="tab-content">
+        <section class="panel">
+          <div class="inline" style="justify-content:space-between;align-items:center;">
+            <div>
+              <p class="scene-title" id="sceneTitle">Hub: Signal Garage</p>
+              <p class="scene-desc" id="sceneDesc">An empty staging ground. Coil cables, radio static, and chalk markings on the floor wait for doors to be bolted on.</p>
+            </div>
+            <span class="badge" id="sceneBadge">Idle</span>
+          </div>
+          <div id="actions"></div>
+          <p class="small">Actions are context sensitive. Expansions can add new verbs (quests, scans, stealth crawls) and remix success/failure logic.</p>
+        </section>
+      </div>
+      <div id="tab-log" class="tab-content">
+        <section class="panel">
+          <h3>Signal Log</h3>
+          <div id="log" class="log"></div>
+        </section>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -139,10 +171,12 @@
       storageMode:false,
       flags:new Set(),
       log:["Systems cold-started. Waiting for expansions…"],
-      location:{expansion:null,scene:null}
+      location:{expansion:null,scene:null},
+      excursion:{active:false,steps:0,limit:12,startAt:null,extracting:false}
     };
 
     const lootPool=['flare','ration bar','old coin','bandage','microcell','water flask','scrap wiring','patch kit','lockbox key'];
+    const TASK_MINUTES=0.5; // 30 seconds per action
 
     const riskTable={low:0.07,medium:0.18,high:0.3,deadly:0.45};
     const expansions={};
@@ -150,6 +184,8 @@
     const dom={
       stats:document.getElementById('stats'),
       meta:document.getElementById('meta'),
+      excursionStatus:document.getElementById('excursionStatus'),
+      tempoHint:document.getElementById('tempoHint'),
       doors:document.getElementById('doors'),
       doorsHint:document.getElementById('doorsHint'),
       sceneTitle:document.getElementById('sceneTitle'),
@@ -159,7 +195,17 @@
       inventory:document.getElementById('inventory'),
       codex:document.getElementById('codex'),
       log:document.getElementById('log'),
+      hubLock:document.getElementById('hubLock'),
+      tabs:document.querySelector('.tabs'),
+      tabButtons:Array.from(document.querySelectorAll('.tab-buttons button')),
+      tabContents:{
+        hub:document.getElementById('tab-hub'),
+        field:document.getElementById('tab-field'),
+        log:document.getElementById('tab-log')
+      }
     };
+
+    let activeTab='hub';
 
     /* ================= UTILITIES ================= */
     const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
@@ -310,9 +356,107 @@
       dom.log.textContent=state.log.join('\n');
     }
 
+    function isOnExcursion(){
+      return !!state.location.expansion && state.excursion.active;
+    }
+
+    function excursionSeconds(){
+      if(!state.excursion.startAt) return 0;
+      return Math.max(0,Math.floor((Date.now()-state.excursion.startAt)/1000));
+    }
+
+    function setActiveTab(tab){
+      activeTab=tab;
+      syncTabs();
+    }
+
+    function syncTabs(){
+      const requested=state.excursion.active && activeTab==='hub' ? 'field' : activeTab;
+      activeTab=requested;
+      dom.tabButtons.forEach(btn=>{
+        const target=btn.dataset.tab;
+        btn.classList.toggle('active',target===activeTab);
+        btn.disabled=state.excursion.active && target==='hub';
+      });
+      Object.entries(dom.tabContents).forEach(([id,el])=>{
+        el.classList.toggle('active',id===activeTab);
+      });
+    }
+
+    dom.tabButtons.forEach(btn=>{
+      btn.onclick=()=>{ activeTab=btn.dataset.tab; syncTabs(); };
+    });
+
+    function renderExcursionStatus(){
+      if(!state.excursion.active){
+        dom.excursionStatus.innerHTML='<b>Hub status:</b> Ready · No excursions running.';
+        dom.tempoHint.textContent='Tasks now operate on a 30-second cadence. Build a rhythm, then trigger extraction when ready.';
+        return;
+      }
+      const spent=state.excursion.steps*30;
+      const remaining=Math.max(0,(state.excursion.limit-state.excursion.steps)*30);
+      const manualReady=excursionSeconds()>=30;
+      dom.excursionStatus.innerHTML=`<b>Excursion tempo:</b> ${state.excursion.steps}/${state.excursion.limit} tasks used · ${spent/60}m elapsed · ${remaining/60}m remaining`;
+      dom.tempoHint.textContent=state.excursion.extracting
+        ? 'Extraction underway. Hold position for 30 seconds while the winch hauls you out.'
+        : manualReady? 'Extraction can be called at any point now. Auto-extraction triggers when time is fully spent.'
+        : 'Extraction channel locks in after 30 seconds of field time. Keep pushing until it opens.';
+    }
+
+    function renderHubAccess(){
+      dom.hubLock.textContent=state.excursion.active
+        ? 'Hub consoles are locked while you are on excursion. Finish tasks or extract to regain access.'
+        : 'Hub is open. Bolt onto a door or manage your kit before the next run.';
+    }
+
+    function appendExtractionControls(){
+      if(!isOnExcursion()) return;
+      const manualReady=excursionSeconds()>=30;
+      const progress=document.createElement('div');
+      progress.className='small';
+      progress.textContent=`Tasks consumed: ${state.excursion.steps}/${state.excursion.limit} · Extraction ${manualReady?'ready':'locks in after 30s'}`;
+      const call=document.createElement('button');
+      call.innerHTML='<span>Call extraction</span><span class="small">30s</span>';
+      call.disabled=!manualReady;
+      call.onclick=()=>startExtraction(false);
+      dom.actions.appendChild(progress);
+      dom.actions.appendChild(call);
+    }
+
+    function incrementExcursionStep(){
+      if(!isOnExcursion() || state.excursion.extracting) return;
+      state.excursion.steps=Math.min(state.excursion.steps+1,state.excursion.limit);
+      renderExcursionStatus();
+      if(state.excursion.steps>=state.excursion.limit){
+        logMsg('Extraction auto-triggered: field time fully spent.');
+        startExtraction(true);
+      }
+    }
+
+    function startExtraction(autoTriggered=false){
+      if(!isOnExcursion() || state.excursion.extracting) return;
+      if(!autoTriggered && excursionSeconds()<30){
+        setCodex('Extraction uplink not ready. Wait 30 seconds on target.');
+        return;
+      }
+      state.excursion.extracting=true;
+      logMsg(autoTriggered?'Auto-extraction initiated — time exhausted.':'Extraction requested — hold tight for 30 seconds.');
+      renderAll();
+      setTimeout(completeExtraction,30000);
+    }
+
+    function completeExtraction(){
+      tickTime(TASK_MINUTES);
+      resetToHub();
+      logMsg('Extraction complete. Back in the hub.');
+      setCodex('Hel winch hauls you home. Hub systems unlocked.');
+      renderAll();
+    }
+
     function renderScene(){
       dom.actions.innerHTML='';
       if(!state.location.expansion){
+        dom.sceneBadge.textContent='Idle';
         const waiting=document.createElement('button');
         waiting.classList.add('btn-secondary');
         waiting.textContent='Awaiting expansion doors… idle scan ready';
@@ -325,32 +469,34 @@
       const scene=exp.scenes[state.location.scene];
       dom.sceneTitle.textContent=`${exp.meta.name} — ${scene.title||scene.id}`;
       dom.sceneDesc.textContent=scene.desc||"Unmarked space.";
-      dom.sceneBadge.textContent=scene.tags?scene.tags:'Active';
+      dom.sceneBadge.textContent=state.excursion.extracting?'Extracting':(scene.tags?scene.tags:'Active');
+      if(state.excursion.extracting){
+        const hold=document.createElement('button');
+        hold.textContent='Hold position…';
+        hold.disabled=true;
+        dom.actions.appendChild(hold);
+        return;
+      }
       if(!scene.options || !scene.options.length){
-        const b=document.createElement('button');
-        b.textContent='Return to Hub';
-        b.onclick=resetToHub;
-        dom.actions.appendChild(b);
+        appendExtractionControls();
         appendCoreActions();
         return;
       }
       scene.options.forEach(opt=>{
         const btn=document.createElement('button');
-        btn.innerHTML=`<span>${opt.label}</span><span class="small">${opt.risk || 'steady'} · ${opt.time||5}m</span>`;
+        btn.innerHTML=`<span>${opt.label}</span><span class="small">${opt.risk || 'steady'} · 0.5m</span>`;
         btn.onclick=()=>runOption(exp,scene,opt);
         if(opt.risk==='deadly') btn.classList.add('danger');
         dom.actions.appendChild(btn);
       });
-      const fallback=document.createElement('button');
-      fallback.classList.add('btn-secondary');
-      fallback.textContent='Slip back to hub';
-      fallback.onclick=resetToHub;
-      dom.actions.appendChild(fallback);
+      appendExtractionControls();
       appendCoreActions();
     }
 
     function enterScene(expansionId,sceneId){
       state.location={expansion:expansionId,scene:sceneId};
+      state.excursion={active:true,steps:0,limit:12,startAt:Date.now(),extracting:false};
+      setActiveTab('field');
       renderScene();
     }
 
@@ -416,7 +562,8 @@
     }
 
     function runOption(exp,scene,opt){
-      tickTime(Number(opt.time||5));
+      if(state.excursion.extracting) return;
+      tickTime(TASK_MINUTES);
       state.hunger=clamp(state.hunger+2,0,state.maxHunger);
       state.thirst=clamp(state.thirst+3,0,state.maxThirst);
       state.stamina=clamp(state.stamina-5,0,state.maxStamina);
@@ -450,26 +597,29 @@
       if(next && success){
         enterScene(exp.meta.id,next);
       }
+      incrementExcursionStep();
       renderAll();
     }
 
     function resetToHub(){
       state.location={expansion:null,scene:null};
+      state.excursion={active:false,steps:0,limit:12,startAt:null,extracting:false};
       dom.sceneTitle.textContent='Hub: Signal Garage';
       dom.sceneDesc.textContent='An empty staging ground. Coil cables, radio static, and chalk markings on the floor wait for doors to be bolted on.';
       dom.sceneBadge.textContent='Idle';
       dom.actions.innerHTML='';
+      setActiveTab('hub');
     }
 
     function appendCoreActions(){
       const idle=document.createElement('button');
-      idle.innerHTML='<span>Pulse idle scan</span><span class="small">steady · 3m</span>';
+      idle.innerHTML='<span>Pulse idle scan</span><span class="small">steady · 0.5m</span>';
       idle.onclick=runPulseScan;
       const rest=document.createElement('button');
-      rest.innerHTML='<span>Make camp</span><span class="small">low · 8m</span>';
+      rest.innerHTML='<span>Make camp</span><span class="small">low · 0.5m</span>';
       rest.onclick=runCamp;
       const convert=document.createElement('button');
-      convert.innerHTML='<span>Cash in signal</span><span class="small">trade · instant</span>';
+      convert.innerHTML='<span>Cash in signal</span><span class="small">trade · 0.5m</span>';
       convert.onclick=burnSignal;
       dom.actions.appendChild(idle);
       dom.actions.appendChild(rest);
@@ -477,17 +627,18 @@
     }
 
     function runPulseScan(){
-      tickTime(3);
+      tickTime(TASK_MINUTES);
       const pulse=4+Math.floor(state.streak/2);
       state.signal=clamp(state.signal+pulse,0,state.maxSignal);
       state.heat=clamp(state.heat+1,0,999);
       state.thirst=clamp(state.thirst+1,0,state.maxThirst);
       logMsg(`Signal trickle captured (+${pulse}).`);
+      incrementExcursionStep();
       renderAll();
     }
 
     function runCamp(){
-      tickTime(8);
+      tickTime(TASK_MINUTES);
       state.stamina=clamp(state.stamina+12,0,state.maxStamina);
       state.hp=clamp(state.hp+4,0,state.maxHp);
       state.morale=clamp(state.morale+2,0,state.maxMorale);
@@ -497,6 +648,7 @@
       state.streak=0;
       logMsg('You bunker down, patch gear, and reset momentum.');
       rollComplication('camp');
+      incrementExcursionStep();
       renderAll();
     }
 
@@ -505,11 +657,13 @@
         logMsg('Not enough signal to trade.');
         return;
       }
+      tickTime(TASK_MINUTES);
       const payout=4+Math.floor(state.signal/12)+Math.floor(state.streak/3);
       state.signal=Math.max(0,state.signal-10);
       state.credits+=payout;
       state.scrap=clamp(state.scrap+1,0,999);
       logMsg(`Signal monetized for ${payout} credits and salvage.`);
+      incrementExcursionStep();
       renderAll();
     }
 
@@ -546,6 +700,10 @@
       const btn=document.createElement('button');
       btn.innerHTML=`<span>${exp.door?.label||exp.meta.name}</span><span class="small">${exp.door?.hint||'Unknown signal'}</span>`;
       btn.onclick=()=>{
+        if(state.excursion.active){
+          setCodex('Hub sealed during excursion. Extract before choosing another door.');
+          return;
+        }
         const start=exp.door?.target||Object.keys(exp.scenes)[0];
         enterScene(exp.meta.id,start);
         if(exp.door?.note) setCodex(exp.door.note);
@@ -608,6 +766,9 @@
       renderInventory();
       renderScene();
       renderLog();
+      renderExcursionStatus();
+      renderHubAccess();
+      syncTabs();
     }
 
     /* ================= INIT ================= */
