@@ -1,42 +1,155 @@
 @stats
 health:100
 ammo:6
+rad:0
+day:1
 scrap:0
+stealth:1
 
-@quest extract
+@room death
+You collapse in the Dead Zone.
+Your run is over.
 
-@room outskirts
-You crouch behind rusted cars at the edge of the Zone.
-The air crackles with distant gunfire.
+- Restart run
+* goto base
 
-- Move toward the radio tower
-* goto tower
+@room base
+You are inside the Safe Base.
+Concrete walls hum with failing power.
 
-- Search the wrecks (attempts:2)
+- Check stash
+* give ammo
+* give medkit
+
+- Visit trader
+* goto trader
+
+- Enter Dead Zone
+* goto highway
+
+@room trader
+The trader sizes you up.
+
+- Buy ammo (2 scrap)
+* stat scrap -2
+* stat ammo 4
+
+- Buy medkit (3 scrap)
+* stat scrap -3
+* give medkit
+
+- Buy stealth cloak (5 scrap)
+* stat scrap -5
+* stat stealth 2
+
+- Sell scrap loot
+* stat scrap 2
+
+- Leave
+* goto base
+
+@room highway
+Wrecked vehicles stretch into fog.
+Radiation clicks softly.
+
+- Move to suburbs
+* stat rad 2
+* goto suburbs
+
+- Scavenge wrecks (attempts:2)
 * give scrap
-* stat ammo 2
+* stat ammo 1
 
-@room tower
-The radio tower looms above the fog.
-An extraction flare could be fired here.
+- Extract
+* goto extract
 
-- Fight scavengers
+@room suburbs
+Collapsed houses and open streets.
+
+- Sneak past raiders (attempts:1)
+* stat stealth 1
+* goto factory
+
+- Fail the sneak
+* stat health -25
+* goto factory
+
+- Fight through
 * stat health -20
+* goto factory
+
+@room factory
+Rusting machines loom overhead.
+
+- Search crates (attempts:2)
+* give scrap
+* give ammo
+
+- Stealth takedown (attempts:1)
+* stat stealth 1
 * give scrap
 
-- Fire extraction flare
-* goto extraction
+- Alert the floor
+* stat health -30
 
-@room extraction
-The flare burns bright.
-Something is coming.
+- Push deeper
+* stat rad 3
+* goto metro
+
+@room metro
+Flooded tunnels glow faintly.
+
+- Search medical cabinets (attempts:1)
+* give medkit
+
+- Fight mutants
+* stat health -25
+* give scrap
+
+- Retreat
+* goto extract
+
+@room extract
+You fire the extraction flare.
+Enemies converge.
 
 - Hold position
-* stat health -30
-* goto end
+* stat health -15
+* goto base_reset
 
-@room end
-A dropship roars overhead.
-You’re pulled from the Zone.
+@room base_reset
+You return to base.
+Radiation is scrubbed away.
+A day passes.
+
+- Continue
+* stat rad -999
+* stat day 1
+* goto base
+
+@room reactor_gate
+The reactor entrance looms.
+This is your last chance.
+
+- Enter reactor
+* goto reactor
+
+@room reactor
+The core pulses violently.
+Guards pour in.
+
+- Stealth approach (attempts:1)
+* stat stealth 2
+* stat ammo -2
+* goto reactor_end
+
+- Brute force
+* stat health -50
+* stat ammo -6
+* goto reactor_end
+
+@room reactor_end
+The reactor powers down.
+The Dead Zone goes silent.
 
 - Finish
