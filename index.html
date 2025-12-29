@@ -122,6 +122,9 @@
       hunger:18,maxHunger:100,
       thirst:22,maxThirst:100,
       rads:0,heat:0,
+      signal:12,maxSignal:120,
+      scrap:6,
+      streak:0,
       credits:50,
       day:1,timeMinutes:6*60,
       inventory:["rusty flashlight"],
@@ -179,6 +182,9 @@
       }).join('');
       dom.meta.innerHTML=`<span class="pill-inline"><b>Credits</b>${state.credits}</span>`+
         `<span class="pill-inline"><b>Heat</b>${state.heat}</span>`+
+        `<span class="pill-inline"><b>Signal</b>${state.signal}/${state.maxSignal}</span>`+
+        `<span class="pill-inline"><b>Scrap</b>${state.scrap}</span>`+
+        `<span class="pill-inline"><b>Streak</b>${state.streak}x</span>`+
         `<span class="pill-inline"><b>Time</b>${fmtTime(state.timeMinutes)}</span>`+
         `<span class="pill-inline"><b>Day</b>${state.day}</span>`;
     }
@@ -193,8 +199,14 @@
     }
 
     function renderScene(){
+      dom.actions.innerHTML='';
       if(!state.location.expansion){
-        dom.actions.innerHTML='<button class="btn-secondary" disabled>Awaiting expansion doors…</button>';
+        const waiting=document.createElement('button');
+        waiting.classList.add('btn-secondary');
+        waiting.textContent='Awaiting expansion doors… idle scan ready';
+        waiting.onclick=runPulseScan;
+        dom.actions.appendChild(waiting);
+        appendCoreActions();
         return;
       }
       const exp=expansions[state.location.expansion];
@@ -202,12 +214,12 @@
       dom.sceneTitle.textContent=`${exp.meta.name} — ${scene.title||scene.id}`;
       dom.sceneDesc.textContent=scene.desc||"Unmarked space.";
       dom.sceneBadge.textContent=scene.tags?scene.tags:'Active';
-      dom.actions.innerHTML='';
       if(!scene.options || !scene.options.length){
         const b=document.createElement('button');
         b.textContent='Return to Hub';
         b.onclick=resetToHub;
         dom.actions.appendChild(b);
+        appendCoreActions();
         return;
       }
       scene.options.forEach(opt=>{
@@ -222,6 +234,7 @@
       fallback.textContent='Slip back to hub';
       fallback.onclick=resetToHub;
       dom.actions.appendChild(fallback);
+      appendCoreActions();
     }
 
     function enterScene(expansionId,sceneId){
@@ -277,6 +290,20 @@
       if(opt.rad) state.rads+=Number(opt.rad);
       if(opt.heat) state.heat+=Number(opt.heat);
 
+      if(success){
+        state.streak++;
+        const momentumBonus=Math.min(4,Math.floor(state.streak/2));
+        const signalGain=3+momentumBonus;
+        state.signal=clamp(state.signal+signalGain,0,state.maxSignal);
+        if(state.streak%3===0){
+          state.scrap=clamp(state.scrap+1,0,999);
+          logMsg(`Momentum ${state.streak}x — scavenged extra scrap.`);
+        }
+      }else{
+        state.streak=0;
+        state.heat=clamp(state.heat+2,0,999);
+      }
+
       logMsg(`${success?'✓':'✖'} ${opt.label}${success?' succeeded':' failed'} (risk ${opt.risk||'steady'})`);
 
       const next=opt.target && opt.target.trim();
@@ -292,6 +319,57 @@
       dom.sceneDesc.textContent='An empty staging ground. Coil cables, radio static, and chalk markings on the floor wait for doors to be bolted on.';
       dom.sceneBadge.textContent='Idle';
       dom.actions.innerHTML='';
+    }
+
+    function appendCoreActions(){
+      const idle=document.createElement('button');
+      idle.innerHTML='<span>Pulse idle scan</span><span class="small">steady · 3m</span>';
+      idle.onclick=runPulseScan;
+      const rest=document.createElement('button');
+      rest.innerHTML='<span>Make camp</span><span class="small">low · 8m</span>';
+      rest.onclick=runCamp;
+      const convert=document.createElement('button');
+      convert.innerHTML='<span>Cash in signal</span><span class="small">trade · instant</span>';
+      convert.onclick=burnSignal;
+      dom.actions.appendChild(idle);
+      dom.actions.appendChild(rest);
+      dom.actions.appendChild(convert);
+    }
+
+    function runPulseScan(){
+      tickTime(3);
+      const pulse=4+Math.floor(state.streak/2);
+      state.signal=clamp(state.signal+pulse,0,state.maxSignal);
+      state.heat=clamp(state.heat+1,0,999);
+      state.thirst=clamp(state.thirst+1,0,state.maxThirst);
+      logMsg(`Signal trickle captured (+${pulse}).`);
+      renderAll();
+    }
+
+    function runCamp(){
+      tickTime(8);
+      state.stamina=clamp(state.stamina+12,0,state.maxStamina);
+      state.hp=clamp(state.hp+4,0,state.maxHp);
+      state.morale=clamp(state.morale+2,0,state.maxMorale);
+      state.hunger=clamp(state.hunger+3,0,state.maxHunger);
+      state.thirst=clamp(state.thirst+3,0,state.maxThirst);
+      state.heat=Math.max(0,state.heat-3);
+      state.streak=0;
+      logMsg('You bunker down, patch gear, and reset momentum.');
+      renderAll();
+    }
+
+    function burnSignal(){
+      if(state.signal<10){
+        logMsg('Not enough signal to trade.');
+        return;
+      }
+      const payout=4+Math.floor(state.signal/12)+Math.floor(state.streak/3);
+      state.signal=Math.max(0,state.signal-10);
+      state.credits+=payout;
+      state.scrap=clamp(state.scrap+1,0,999);
+      logMsg(`Signal monetized for ${payout} credits and salvage.`);
+      renderAll();
     }
 
     /* ================= EXPANSION LOADING ================= */
@@ -394,6 +472,20 @@
     /* ================= INIT ================= */
     renderAll();
     loadGames();
+
+    function ambientTick(){
+      tickTime(4);
+      const drip=1+Math.floor(state.streak/4);
+      state.signal=clamp(state.signal+drip,0,state.maxSignal);
+      state.hunger=clamp(state.hunger+1,0,state.maxHunger);
+      state.thirst=clamp(state.thirst+1,0,state.maxThirst);
+      if(state.timeMinutes%60===0){
+        logMsg('The hub crackles. Passive signal trickles in.');
+      }
+      renderAll();
+    }
+
+    setInterval(ambientTick,6500);
   </script>
 </body>
 </html>
