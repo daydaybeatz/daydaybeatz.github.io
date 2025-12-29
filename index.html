@@ -3,196 +3,330 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>IF Engine</title>
+<title>IF Engine v2.0</title>
 
 <style>
-body{margin:0;background:#111;color:#eee;font-family:system-ui,monospace}
-#app{max-width:720px;margin:auto;padding:12px}
-.panel{background:#222;border:1px solid #444;padding:10px;margin-bottom:10px;border-radius:6px}
-button{width:100%;min-height:48px;background:#333;color:#fff;border:1px solid #555;border-radius:6px;padding:10px;text-align:left}
+:root{
+  --bg:#0f0f0f;
+  --panel:#1b1b1b;
+  --border:#333;
+  --text:#eee;
+  --accent:#7fff9f;
+  --bad:#ff6b6b;
+}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:system-ui, monospace;
+}
+#app{max-width:820px;margin:auto;padding:12px}
+.panel{
+  background:var(--panel);
+  border:1px solid var(--border);
+  padding:10px;
+  margin-bottom:10px;
+  border-radius:6px;
+}
+button{
+  width:100%;
+  min-height:44px;
+  background:#222;
+  color:#fff;
+  border:1px solid #444;
+  border-radius:6px;
+  padding:10px;
+  text-align:left;
+}
+button:hover{background:#2a2a2a}
 #options{display:flex;flex-direction:column;gap:8px}
-#inventory{display:flex;gap:8px;flex-wrap:wrap}
-.item{background:#333;padding:6px 10px;border-radius:6px}
+#inv,#stash{display:flex;flex-wrap:wrap;gap:6px}
+.item{
+  padding:6px 10px;
+  background:#2a2a2a;
+  border-radius:6px;
+  font-size:13px;
+}
+.item.equipped{outline:2px solid var(--accent)}
 .small{opacity:.7;font-size:13px}
+#log{font-size:13px;white-space:pre-wrap}
 </style>
 </head>
 
 <body>
 <div id="app">
 
-  <div id="loader" class="panel">
-    <div>Select a game:</div>
-    <div id="gameList"></div>
+<div id="loader" class="panel">
+  <div>Select Game</div>
+  <div id="gameList"></div>
+</div>
+
+<div id="game" style="display:none">
+
+  <div id="stats" class="panel small"></div>
+
+  <div class="panel">
+    <b>Equipment</b>
+    <div id="equip" class="small"></div>
   </div>
 
-  <div id="game" style="display:none">
-    <div id="stats" class="panel"></div>
-    <div id="quests" class="panel small"></div>
-    <div id="text" class="panel"></div>
-    <div id="options"></div>
-    <div id="inventory" class="panel"></div>
+  <div class="panel">
+    <b>Inventory</b>
+    <div id="inv"></div>
+  </div>
+
+  <div class="panel">
+    <b>Stash</b>
+    <div id="stash"></div>
+  </div>
+
+  <div id="text" class="panel"></div>
+  <div id="options"></div>
+
+  <div class="panel">
+    <b>Log</b>
+    <div id="log"></div>
   </div>
 
 </div>
+</div>
 
 <script>
-let story={rooms:{}}
+/* ================= ENGINE CORE ================= */
+
+let GAME = {
+  rules:{
+    clampStats:true,
+    enableTime:true,
+    maxDays:7,
+    excursionsPerDay:2,
+    radiationEnabled:true,
+    radiationThreshold:6,
+    radiationDamage:2
+  }
+};
+
+let story={rooms:{}};
+
 let state={
   room:null,
   stats:{},
   inventory:[],
-  quests:{},
-  attempts:{}
+  stash:[],
+  equipment:{weapon:null,armor:null,cloak:null},
+  attempts:{},
+  excursions:0,
+  log:[]
+};
+
+/* ================= UTILS ================= */
+
+function log(msg){
+  state.log.unshift(msg);
+  if(state.log.length>8) state.log.pop();
 }
 
-/* ---------- LOAD GAME LIST ---------- */
-fetch("games.json")
-.then(r=>r.json())
-.then(showGames)
-.catch(()=>alert("games.json missing"))
+function clamp(){
+  if(!GAME.rules.clampStats) return;
+  for(let k in state.stats){
+    if(typeof state.stats[k]==="number"){
+      state.stats[k]=Math.max(0,state.stats[k]);
+    }
+  }
+}
 
-function showGames(list){
-  let gl=document.getElementById("gameList")
-  gl.innerHTML=""
+function renderText(txt){
+  return txt.replace(/\{(\w+)\}/g,(_,k)=>state.stats[k]??"");
+}
+
+/* ================= GAME LOADER ================= */
+
+fetch("games.json").then(r=>r.json()).then(list=>{
+  let gl=document.getElementById("gameList");
   list.forEach(g=>{
-    let b=document.createElement("button")
-    b.innerText=g.title
-    b.onclick=()=>loadGame(g.file)
-    gl.appendChild(b)
-  })
-}
+    let b=document.createElement("button");
+    b.textContent=g.title;
+    b.onclick=()=>loadGame(g.file);
+    gl.appendChild(b);
+  });
+});
 
-/* ---------- LOAD GAME ---------- */
 function loadGame(file){
-  fetch(file)
-  .then(r=>{
-    if(!r.ok) throw "Failed to load "+file
-    return r.text()
-  })
-  .then(parse)
-  .then(start)
-  .catch(e=>alert(e))
+  fetch(file).then(r=>r.text()).then(parse).then(start);
 }
 
-/* ---------- PARSER ---------- */
+/* ================= PARSER ================= */
+
 function parse(txt){
-  story={rooms:{}}
-  state.stats={}
-  state.inventory=[]
-  state.quests={}
-  state.attempts={}
+  story={rooms:{}};
+  state.inventory=[];
+  state.stash=[];
+  state.equipment={weapon:null,armor:null,cloak:null};
+  state.stats={};
+  state.attempts={};
+  state.excursions=0;
+  state.log=[];
 
-  let lines=txt.split("\n")
-  let room=null,opt=null
+  let room=null,opt=null;
 
-  for(let raw of lines){
-    let l=raw.trim()
-    if(!l) continue
+  txt.split("\n").forEach(raw=>{
+    let l=raw.trim();
+    if(!l) return;
+
+    if(l.startsWith("@stats")) return;
+
+    if(!room && l.includes(":")){
+      let[k,v]=l.split(":");
+      state.stats[k]=+v;
+      return;
+    }
 
     if(l.startsWith("@room")){
-      let id=l.split(" ")[1]
-      story.rooms[id]={text:"",options:[]}
-      room=story.rooms[id]
-      continue
-    }
-
-    if(l.startsWith("@stats")) continue
-
-    if(l.includes(":") && !room){
-      let [k,v]=l.split(":")
-      state.stats[k]=+v
-      continue
-    }
-
-    if(l.startsWith("@quest")){
-      let id=l.split(" ")[1]
-      state.quests[id]="active"
-      continue
+      let id=l.split(" ")[1];
+      story.rooms[id]={text:"",options:[]};
+      room=story.rooms[id];
+      return;
     }
 
     if(room){
       if(l.startsWith("-")){
-        let m=l.match(/\(attempts:(\d+)(,hide)?\)/)
-        opt={
-          label:l.replace(/\(.+\)/,"").slice(1).trim(),
-          actions:[],
-          max:m?+m[1]:null,
-          hide:m?.[2]
-        }
-        room.options.push(opt)
-        continue
+        let m=l.match(/\(attempts:(\d+)\)/);
+        opt={label:l.replace(/\(.+\)/,"").slice(1).trim(),acts:[],max:m?+m[1]:null};
+        room.options.push(opt);
+        return;
       }
-
       if(l.startsWith("*")){
-        opt.actions.push(l.slice(1).trim())
-        continue
+        opt.acts.push(l.slice(1).trim());
+        return;
       }
-
-      room.text+=l+"\n"
+      room.text+=l+"\n";
     }
-  }
+  });
 }
 
-/* ---------- START ---------- */
+/* ================= START ================= */
+
 function start(){
-  document.getElementById("loader").style.display="none"
-  document.getElementById("game").style.display="block"
-  state.room=Object.keys(story.rooms)[0]
-  render()
+  document.getElementById("loader").style.display="none";
+  document.getElementById("game").style.display="block";
+  state.room=Object.keys(story.rooms)[0];
+  render();
 }
 
-/* ---------- RENDER ---------- */
+/* ================= RENDER ================= */
+
 function render(){
-  let r=story.rooms[state.room]
+  clamp();
 
-  stats.innerText=Object.entries(state.stats).map(e=>e.join(":")).join(" | ")
-  quests.innerText="Quests:\n"+Object.keys(state.quests).join("\n")
-  text.innerText=r.text
-
-  options.innerHTML=""
-  r.options.forEach(o=>{
-    let key=state.room+"|"+o.label
-    state.attempts[key]??=o.max
-
-    if(o.max!==null && state.attempts[key]<=0) return
-
-    let label=o.label
-    if(o.max!==null && !o.hide){
-      label+=` (${state.attempts[key]}/${o.max})`
+  // radiation damage
+  if(GAME.rules.radiationEnabled && state.stats.rad>=GAME.rules.radiationThreshold){
+    state.stats.health-=GAME.rules.radiationDamage;
+    log("Radiation burns your body.");
+    if(state.stats.health<=0){
+      state.room="death";
     }
+  }
 
-    let b=document.createElement("button")
-    b.innerText=label
-    b.onclick=()=>{
-      if(o.max!==null) state.attempts[key]--
-      o.actions.forEach(run)
-      render()
-    }
-    options.appendChild(b)
-  })
+  let r=story.rooms[state.room];
 
-  inventory.innerHTML="Inventory:"
+  stats.textContent=Object.entries(state.stats).map(e=>e.join(":")).join(" | ");
+
+  equip.textContent=
+    `Weapon: ${state.equipment.weapon||"-"} | `+
+    `Armor: ${state.equipment.armor||"-"} | `+
+    `Cloak: ${state.equipment.cloak||"-"}`;
+
+  inv.innerHTML="";
   state.inventory.forEach(i=>{
-    let d=document.createElement("div")
-    d.className="item"
-    d.innerText=i
-    inventory.appendChild(d)
-  })
+    let d=document.createElement("div");
+    d.className="item";
+    d.textContent=i;
+    d.onclick=()=>useItem(i);
+    inv.appendChild(d);
+  });
+
+  stash.innerHTML="";
+  state.stash.forEach(i=>{
+    let d=document.createElement("div");
+    d.className="item";
+    d.textContent=i;
+    stash.appendChild(d);
+  });
+
+  text.textContent=renderText(r.text);
+
+  options.innerHTML="";
+  r.options.forEach(o=>{
+    let key=state.room+"|"+o.label;
+    state.attempts[key]??=o.max;
+
+    if(o.max!==null && state.attempts[key]<=0) return;
+
+    let b=document.createElement("button");
+    b.textContent=o.label;
+    b.onclick=()=>{
+      if(o.max!==null) state.attempts[key]--;
+      o.acts.forEach(run);
+      render();
+    };
+    options.appendChild(b);
+  });
+
+  logDiv.innerHTML=state.log.join("\n");
 }
 
-/* ---------- ACTIONS ---------- */
+/* ================= ACTIONS ================= */
+
 function run(a){
-  if(a.startsWith("goto")){
-    state.room=a.split(" ")[1]
+  let p=a.split(" ");
+  if(p[0]==="goto"){
+    state.room=p[1];
+    return;
   }
-  if(a.startsWith("give")){
-    state.inventory.push(a.split(" ")[1])
+  if(p[0]==="stat"){
+    state.stats[p[1]]+=+p[2];
+    return;
   }
-  if(a.startsWith("stat")){
-    let [_,k,v]=a.split(" ")
-    state.stats[k]+=+v
+  if(p[0]==="give"){
+    state.inventory.push(p[1]);
+    log(`Found ${p[1]}.`);
+    return;
   }
+  if(p[0]==="stash"){
+    state.stash.push(p[1]);
+    log(`Stored ${p[1]}.`);
+    return;
+  }
+  if(p[0]==="equip"){
+    let type=p[1];
+    let item=p[2];
+    state.equipment[type]=item;
+    log(`Equipped ${item}.`);
+    return;
+  }
+}
+
+/* ================= INVENTORY ================= */
+
+function useItem(it){
+  if(it.startsWith("weapon_")){
+    state.equipment.weapon=it;
+    log(`Weapon equipped: ${it}`);
+  }
+  else if(it.startsWith("armor_")){
+    state.equipment.armor=it;
+    log(`Armor equipped: ${it}`);
+  }
+  else if(it.startsWith("cloak_")){
+    state.equipment.cloak=it;
+    log(`Cloak equipped: ${it}`);
+  }
+  else if(it==="medkit"){
+    state.stats.health+=20;
+    state.inventory.splice(state.inventory.indexOf(it),1);
+    log("Used medkit.");
+  }
+  render();
 }
 </script>
 </body>
