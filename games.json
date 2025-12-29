@@ -14,6 +14,11 @@
       "id": "forest",
       "name": "Dark Forest",
       "file": "expansions/forest.txt"
+    },
+    {
+      "id": "portland_slums",
+      "name": "Portland Slums",
+      "file": "expansions/portland_slums.txt"
     }
   ]
 }
