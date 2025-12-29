@@ -1,158 +1,175 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Interactive Fiction</title>
+<title>IF Engine</title>
 
 <style>
-body{margin:0;background:#111;color:#eee;font-family:system-ui, monospace}
-#app{max-width:720px;margin:0 auto;padding:12px}
+body{margin:0;background:#111;color:#eee;font-family:system-ui,monospace}
+#app{max-width:720px;margin:auto;padding:12px}
 .panel{background:#222;border:1px solid #444;padding:10px;margin-bottom:10px;border-radius:6px}
-#text{white-space:pre-wrap;font-size:16px}
-button{
-  width:100%;min-height:48px;
-  background:#333;color:#fff;
-  border:1px solid #555;border-radius:6px;
-  padding:10px;text-align:left
-}
-#error{color:#f88;white-space:pre-wrap}
+button{width:100%;min-height:48px;background:#333;color:#fff;border:1px solid #555;border-radius:6px;padding:10px;text-align:left}
+#options{display:flex;flex-direction:column;gap:8px}
+#inventory{display:flex;gap:8px;flex-wrap:wrap}
+.item{background:#333;padding:6px 10px;border-radius:6px}
+.small{opacity:.7;font-size:13px}
 </style>
 </head>
 
 <body>
 <div id="app">
-  <div id="error" class="panel" style="display:none"></div>
-  <div id="stats" class="panel"></div>
-  <div id="text" class="panel"></div>
-  <div id="options"></div>
+  <div id="loader" class="panel">
+    <div>Enter game file to load:</div>
+    <input id="gamefile" value="game.txt" style="width:100%;padding:8px">
+    <button onclick="loadGame()">Load Game</button>
+  </div>
+
+  <div id="game" style="display:none">
+    <div id="stats" class="panel"></div>
+    <div id="quests" class="panel small"></div>
+    <div id="text" class="panel"></div>
+    <div id="options"></div>
+    <div id="inventory" class="panel"></div>
+  </div>
 </div>
 
 <script>
-let story={pages:{}};
-let state={page:null,stats:{},flags:{},quests:{}};
-const errorBox=document.getElementById("error");
+let story={rooms:{}}
+let state={
+  room:null,
+  stats:{},
+  inventory:[],
+  quests:{},
+  attempts:{}
+}
 
-fetch("story.txt")
-.then(r=>{
-  if(!r.ok) throw new Error("Failed to load story.txt");
-  return r.text();
-})
-.then(parse)
-.then(start)
-.catch(showError);
-
-function showError(e){
-  errorBox.style.display="block";
-  errorBox.textContent="ERROR:\n"+e.message;
-  console.error(e);
+function loadGame(){
+  let file=document.getElementById("gamefile").value
+  fetch(file).then(r=>{
+    if(!r.ok) throw "Failed to load "+file
+    return r.text()
+  }).then(parse).then(start)
+  .catch(e=>alert(e))
 }
 
 function parse(txt){
-  let lines=txt.split("\n");
-  let mode=null,page=null,opt=null;
-  let inEnter=false;
+  story={rooms:{}}
+  state.stats={}
+  state.inventory=[]
+  state.quests={}
+  state.attempts={}
+
+  let lines=txt.split("\n")
+  let room=null,opt=null
 
   for(let raw of lines){
-    let line=raw.trim();
-    if(!line) continue;
+    let l=raw.trim()
+    if(!l) continue
 
-    if(line.startsWith("@")){
-      let p=line.slice(1).split(" ");
-      mode=p[0];
-      page=null; opt=null; inEnter=false;
-
-      if(mode==="room"||mode==="npc"){
-        story.pages[p[1]]={text:"",opts:[],enter:[]};
-        page=story.pages[p[1]];
-      }
-      continue;
+    if(l.startsWith("@room")){
+      let id=l.split(" ")[1]
+      story.rooms[id]={text:"",options:[]}
+      room=story.rooms[id]
+      continue
     }
 
-    if(mode==="stats"){
-      let[k,v]=line.split(":"); state.stats[k]=+v; continue;
+    if(l.startsWith("@stats")){
+      continue
     }
 
-    if(mode==="flags"){
-      let[k,v]=line.split(":");
-      state.flags[k]=(v==="true"); continue;
+    if(l.includes(":") && !room){
+      let [k,v]=l.split(":")
+      state.stats[k]=+v
+      continue
     }
 
-    if(mode==="quests"){
-      state.quests[line]={state:"inactive",step:""}; continue;
+    if(l.startsWith("@quest")){
+      let id=l.split(" ")[1]
+      state.quests[id]="active"
+      continue
     }
 
-    if(page){
-      if(line==="!enter"){ inEnter=true; continue; }
-
-      if(line.startsWith("-")){
-        inEnter=false;
-        opt={label:line.slice(1).trim(),acts:[],chance:null};
-        page.opts.push(opt);
-        continue;
-      }
-
-      if(line==="!chance"){
-        if(!opt) throw new Error("!chance without option");
-        opt.chance=[];
-        continue;
-      }
-
-      if(line.startsWith("*")){
-        let a=line.slice(1).trim();
-        if(inEnter){
-          page.enter.push(a);
-          continue;
+    if(room){
+      if(l.startsWith("-")){
+        let m=l.match(/\(attempts:(\d+)(,hide)?\)/)
+        opt={
+          label:l.replace(/\(.+\)/,"").slice(1).trim(),
+          actions:[],
+          max:m?+m[1]:null,
+          hide:m?.[2]
         }
-        if(!opt) throw new Error("Action (*) without option");
-        (opt.chance||opt.acts).push(a);
-        continue;
+        room.options.push(opt)
+        continue
       }
 
-      page.text+=line+"\n";
-    }
-  }
+      if(l.startsWith("*")){
+        opt.actions.push(l.slice(1).trim())
+        continue
+      }
 
-  if(!Object.keys(story.pages).length){
-    throw new Error("No rooms defined");
+      room.text+=l+"\n"
+    }
   }
 }
 
 function start(){
-  state.page=Object.keys(story.pages)[0];
-  runEnter();
-  render();
-}
-
-function runEnter(){
-  story.pages[state.page].enter.forEach(runAction);
+  document.getElementById("loader").style.display="none"
+  document.getElementById("game").style.display="block"
+  state.room=Object.keys(story.rooms)[0]
+  render()
 }
 
 function render(){
-  stats.textContent=
-    Object.entries(state.stats).map(e=>e.join(":")).join(" | ");
-  text.textContent=story.pages[state.page].text;
-  options.innerHTML="";
-  story.pages[state.page].opts.forEach(o=>{
-    let b=document.createElement("button");
-    b.textContent=o.label;
-    b.onclick=()=>choose(o);
-    options.appendChild(b);
-  });
+  let r=story.rooms[state.room]
+
+  stats.innerText=Object.entries(state.stats).map(e=>e.join(":")).join(" | ")
+  quests.innerText="Quests:\n"+Object.keys(state.quests).join("\n")
+  text.innerText=r.text
+
+  options.innerHTML=""
+  r.options.forEach(o=>{
+    let key=state.room+"|"+o.label
+    state.attempts[key]??=o.max
+
+    if(o.max!==null && state.attempts[key]<=0) return
+
+    let label=o.label
+    if(o.max!==null && !o.hide){
+      label+=` (${state.attempts[key]}/${o.max})`
+    }
+
+    let b=document.createElement("button")
+    b.innerText=label
+    b.onclick=()=>{
+      if(o.max!==null) state.attempts[key]--
+      o.actions.forEach(run)
+      render()
+    }
+    options.appendChild(b)
+  })
+
+  inventory.innerHTML="Inventory:"
+  state.inventory.forEach(i=>{
+    let d=document.createElement("div")
+    d.className="item"
+    d.innerText=i
+    inventory.appendChild(d)
+  })
 }
 
-function choose(o){
-  let acts=o.chance
-    ? [o.chance[Math.floor(Math.random()*o.chance.length)]]
-    : o.acts;
-  acts.forEach(runAction);
-  render();
-}
-
-function runAction(a){
-  if(a.startsWith("room(")) state.page=a.slice(5,-1);
-  else if(a.startsWith("result(")) alert(a.slice(7,-1));
+function run(a){
+  if(a.startsWith("goto")){
+    state.room=a.split(" ")[1]
+  }
+  if(a.startsWith("give")){
+    state.inventory.push(a.split(" ")[1])
+  }
+  if(a.startsWith("stat")){
+    let [_,k,v]=a.split(" ")
+    state.stats[k]+=+v
+  }
 }
 </script>
 </body>
